@@ -12,3 +12,4 @@ openzeppelin-contracts-v4.9.0/=lib/eigenlayer-contracts/lib/openzeppelin-contrac
 openzeppelin-contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/
 openzeppelin/=lib/eigenlayer-contracts/lib/openzeppelin-contracts-upgradeable-v4.9.0/contracts/
 zeus-templates/=lib/eigenlayer-contracts/lib/zeus-templates/src/
+target-contracts/=lib/target-contracts/

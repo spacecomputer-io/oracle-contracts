@@ -4,7 +4,7 @@ pragma solidity 0.8.25;
 import { OwnableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import { IPauserRegistry } from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
-import { IEOFeedVerifier } from "./interfaces/IEOFeedVerifier.sol";
+import { IEOFeedVerifier } from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import { ICTRNGFeedManager } from "./interfaces/ICTRNGFeedManager.sol";
 import {
     InvalidAddress,
