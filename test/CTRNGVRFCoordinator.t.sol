@@ -80,11 +80,20 @@ contract CTRNGVRFCoordinatorTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);

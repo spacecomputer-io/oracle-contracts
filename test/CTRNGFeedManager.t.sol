@@ -29,7 +29,7 @@ contract MockEOFeedVerifier is IEOFeedVerifier {
         LeafInput calldata input,
         VerificationParams calldata
     ) external view override returns (bytes memory) {
-        bytes memory data = verifiedData[keccak256(input.data)];
+        bytes memory data = verifiedData[keccak256(input.unhashedLeaf)];
         require(data.length > 0, "Data not found");
         return data;
     }
@@ -40,7 +40,7 @@ contract MockEOFeedVerifier is IEOFeedVerifier {
     ) external view override returns (bytes[] memory) {
         bytes[] memory results = new bytes[](inputs.length);
         for (uint256 i = 0; i < inputs.length; i++) {
-            bytes memory data = verifiedData[keccak256(inputs[i].data)];
+            bytes memory data = verifiedData[keccak256(inputs[i].unhashedLeaf)];
             require(data.length > 0, "Data not found");
             results[i] = data;
         }
@@ -150,11 +150,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
@@ -173,11 +182,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
@@ -191,11 +209,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(999, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(999, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
@@ -210,11 +237,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
@@ -235,11 +271,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
@@ -260,11 +305,20 @@ contract CTRNGFeedManagerTest is Test {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({data: inputData});
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
         IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
-            blockNumber: block.number,
-            proof: new bytes[](0),
-            root: bytes32(0)
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
         });
 
         verifier.setVerifiedData(inputData, verifiedData);
