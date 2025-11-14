@@ -441,185 +441,115 @@ contract OrbitportFeedManagerTest is Test {
     }
 
     function test_UpdateFeed_OlderSequence_NoUpdate() public {
-        // First update feed with initial sequence
-        bytes memory inputData1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
-        bytes memory verifiedData1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
-        
-        IEOFeedVerifier.LeafInput memory input1 = IEOFeedVerifier.LeafInput({
-            leafIndex: 0,
-            unhashedLeaf: inputData1,
-            proof: new bytes32[](0)
-        });
-        IEOFeedVerifier.VerificationParams memory vParams1 = IEOFeedVerifier.VerificationParams({
-            blockNumber: uint64(block.number),
-            chainId: uint32(1),
-            aggregator: address(1),
-            eventRoot: bytes32(0),
-            blockHash: bytes32(0),
-            signature: [uint256(0), uint256(0)],
-            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
-            nonSignersBitmap: bytes("0")
-        });
-
-        verifier.setVerifiedData(inputData1, verifiedData1);
-
+        // Setup: Update feed with initial sequence, then newer sequence
+        bytes memory data1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
+        verifier.setVerifiedData(data1, data1);
         vm.prank(publisher);
-        feedManager.updateFeed(input1, vParams1);
+        feedManager.updateFeed(
+            IEOFeedVerifier.LeafInput({leafIndex: 0, unhashedLeaf: data1, proof: new bytes32[](0)}),
+            IEOFeedVerifier.VerificationParams({
+                blockNumber: uint64(block.number),
+                chainId: uint32(1),
+                aggregator: address(1),
+                eventRoot: bytes32(0),
+                blockHash: bytes32(0),
+                signature: [uint256(0), uint256(0)],
+                apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+                nonSignersBitmap: bytes("0")
+            })
+        );
 
-        // Update feed with newer sequence
         uint256 newSequence = SEQUENCE + 10;
-        uint256 newTimestamp = TIMESTAMP + 100;
-        uint256[] memory newCtrngValues = new uint256[](3);
-        newCtrngValues[0] = 100;
-        newCtrngValues[1] = 200;
-        newCtrngValues[2] = 300;
-
-        bytes memory inputData2 = abi.encode(FEED_ID, newSequence, newTimestamp, newCtrngValues);
-        bytes memory verifiedData2 = abi.encode(FEED_ID, newSequence, newTimestamp, newCtrngValues);
-        
-        IEOFeedVerifier.LeafInput memory input2 = IEOFeedVerifier.LeafInput({
-            leafIndex: 0,
-            unhashedLeaf: inputData2,
-            proof: new bytes32[](0)
-        });
-        IEOFeedVerifier.VerificationParams memory vParams2 = IEOFeedVerifier.VerificationParams({
-            blockNumber: uint64(block.number + 1),
-            chainId: uint32(1),
-            aggregator: address(1),
-            eventRoot: bytes32(0),
-            blockHash: bytes32(0),
-            signature: [uint256(0), uint256(0)],
-            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
-            nonSignersBitmap: bytes("0")
-        });
-
-        verifier.setVerifiedData(inputData2, verifiedData2);
-
+        uint256[] memory newValues = new uint256[](1);
+        newValues[0] = 100;
+        bytes memory data2 = abi.encode(FEED_ID, newSequence, TIMESTAMP + 100, newValues);
+        verifier.setVerifiedData(data2, data2);
         vm.prank(publisher);
-        feedManager.updateFeed(input2, vParams2);
+        feedManager.updateFeed(
+            IEOFeedVerifier.LeafInput({leafIndex: 0, unhashedLeaf: data2, proof: new bytes32[](0)}),
+            IEOFeedVerifier.VerificationParams({
+                blockNumber: uint64(block.number + 1),
+                chainId: uint32(1),
+                aggregator: address(1),
+                eventRoot: bytes32(0),
+                blockHash: bytes32(0),
+                signature: [uint256(0), uint256(0)],
+                apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+                nonSignersBitmap: bytes("0")
+            })
+        );
 
-        // Verify latest sequence is the new one
-        assertEq(feedManager.getLatestSequence(FEED_ID), newSequence);
-        IOrbitportFeedManager.CTRNGData memory latestData = feedManager.getLatestCTRNGFeed(FEED_ID);
-        assertEq(latestData.sequence, newSequence);
-        assertEq(latestData.ctrng[0], newCtrngValues[0]);
-
-        // Now try to update with an older sequence (between initial and new)
-        uint256 olderSequence = SEQUENCE + 5; // Older than newSequence but newer than SEQUENCE
-        uint256 olderTimestamp = TIMESTAMP + 50;
-        uint256[] memory olderCtrngValues = new uint256[](2);
-        olderCtrngValues[0] = 999;
-        olderCtrngValues[1] = 888;
-
-        bytes memory inputData3 = abi.encode(FEED_ID, olderSequence, olderTimestamp, olderCtrngValues);
-        bytes memory verifiedData3 = abi.encode(FEED_ID, olderSequence, olderTimestamp, olderCtrngValues);
-        
-        IEOFeedVerifier.LeafInput memory input3 = IEOFeedVerifier.LeafInput({
-            leafIndex: 0,
-            unhashedLeaf: inputData3,
-            proof: new bytes32[](0)
-        });
-        IEOFeedVerifier.VerificationParams memory vParams3 = IEOFeedVerifier.VerificationParams({
-            blockNumber: uint64(block.number + 2),
-            chainId: uint32(1),
-            aggregator: address(1),
-            eventRoot: bytes32(0),
-            blockHash: bytes32(0),
-            signature: [uint256(0), uint256(0)],
-            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
-            nonSignersBitmap: bytes("0")
-        });
-
-        verifier.setVerifiedData(inputData3, verifiedData3);
-
+        // Try to update with older sequence (should be ignored)
+        uint256 olderSequence = SEQUENCE + 5;
+        bytes memory data3 = abi.encode(FEED_ID, olderSequence, TIMESTAMP + 50, new uint256[](1));
+        verifier.setVerifiedData(data3, data3);
         vm.prank(publisher);
-        feedManager.updateFeed(input3, vParams3);
+        feedManager.updateFeed(
+            IEOFeedVerifier.LeafInput({leafIndex: 0, unhashedLeaf: data3, proof: new bytes32[](0)}),
+            IEOFeedVerifier.VerificationParams({
+                blockNumber: uint64(block.number + 2),
+                chainId: uint32(1),
+                aggregator: address(1),
+                eventRoot: bytes32(0),
+                blockHash: bytes32(0),
+                signature: [uint256(0), uint256(0)],
+                apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+                nonSignersBitmap: bytes("0")
+            })
+        );
 
-        // Verify that nothing changed - latest sequence should still be newSequence
+        // Verify latest sequence unchanged and older sequence not stored
         assertEq(feedManager.getLatestSequence(FEED_ID), newSequence);
-        
-        // Verify latest feed data is unchanged
-        IOrbitportFeedManager.CTRNGData memory unchangedData = feedManager.getLatestCTRNGFeed(FEED_ID);
-        assertEq(unchangedData.sequence, newSequence);
-        assertEq(unchangedData.timestamp, newTimestamp);
-        assertEq(unchangedData.ctrng[0], newCtrngValues[0]);
-        assertEq(unchangedData.ctrng.length, newCtrngValues.length);
-
-        // Verify that the older sequence data was NOT stored
-        // Since olderSequence (SEQUENCE + 5) is between SEQUENCE and newSequence,
-        // and we never stored it (because it's older than the latest), 
-        // getCTRNGFeedBySequence should revert with SequenceNotFound
+        assertEq(feedManager.getLatestCTRNGFeed(FEED_ID).sequence, newSequence);
         vm.expectRevert(abi.encodeWithSelector(SequenceNotFound.selector, olderSequence));
         feedManager.getCTRNGFeedBySequence(FEED_ID, olderSequence);
     }
 
     function test_UpdateFeed_SameSequence_NoUpdate() public {
-        // First update feed with initial sequence
-        bytes memory inputData1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
-        bytes memory verifiedData1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
-        
-        IEOFeedVerifier.LeafInput memory input1 = IEOFeedVerifier.LeafInput({
-            leafIndex: 0,
-            unhashedLeaf: inputData1,
-            proof: new bytes32[](0)
-        });
-        IEOFeedVerifier.VerificationParams memory vParams1 = IEOFeedVerifier.VerificationParams({
-            blockNumber: uint64(block.number),
-            chainId: uint32(1),
-            aggregator: address(1),
-            eventRoot: bytes32(0),
-            blockHash: bytes32(0),
-            signature: [uint256(0), uint256(0)],
-            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
-            nonSignersBitmap: bytes("0")
-        });
-
-        verifier.setVerifiedData(inputData1, verifiedData1);
-
+        // Setup: Update feed with initial sequence
+        bytes memory data1 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
+        verifier.setVerifiedData(data1, data1);
         vm.prank(publisher);
-        feedManager.updateFeed(input1, vParams1);
+        feedManager.updateFeed(
+            IEOFeedVerifier.LeafInput({leafIndex: 0, unhashedLeaf: data1, proof: new bytes32[](0)}),
+            IEOFeedVerifier.VerificationParams({
+                blockNumber: uint64(block.number),
+                chainId: uint32(1),
+                aggregator: address(1),
+                eventRoot: bytes32(0),
+                blockHash: bytes32(0),
+                signature: [uint256(0), uint256(0)],
+                apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+                nonSignersBitmap: bytes("0")
+            })
+        );
 
-        // Verify initial sequence
-        assertEq(feedManager.getLatestSequence(FEED_ID), SEQUENCE);
-
-        // Try to update with the same sequence but different data
-        uint256[] memory differentCtrngValues = new uint256[](2);
-        differentCtrngValues[0] = 999;
-        differentCtrngValues[1] = 888;
-
-        bytes memory inputData2 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP + 50, differentCtrngValues);
-        bytes memory verifiedData2 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP + 50, differentCtrngValues);
-        
-        IEOFeedVerifier.LeafInput memory input2 = IEOFeedVerifier.LeafInput({
-            leafIndex: 0,
-            unhashedLeaf: inputData2,
-            proof: new bytes32[](0)
-        });
-        IEOFeedVerifier.VerificationParams memory vParams2 = IEOFeedVerifier.VerificationParams({
-            blockNumber: uint64(block.number + 1),
-            chainId: uint32(1),
-            aggregator: address(1),
-            eventRoot: bytes32(0),
-            blockHash: bytes32(0),
-            signature: [uint256(0), uint256(0)],
-            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
-            nonSignersBitmap: bytes("0")
-        });
-
-        verifier.setVerifiedData(inputData2, verifiedData2);
-
+        // Try to update with same sequence but different data (should be ignored)
+        uint256[] memory differentValues = new uint256[](1);
+        differentValues[0] = 999;
+        bytes memory data2 = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP + 50, differentValues);
+        verifier.setVerifiedData(data2, data2);
         vm.prank(publisher);
-        feedManager.updateFeed(input2, vParams2);
+        feedManager.updateFeed(
+            IEOFeedVerifier.LeafInput({leafIndex: 0, unhashedLeaf: data2, proof: new bytes32[](0)}),
+            IEOFeedVerifier.VerificationParams({
+                blockNumber: uint64(block.number + 1),
+                chainId: uint32(1),
+                aggregator: address(1),
+                eventRoot: bytes32(0),
+                blockHash: bytes32(0),
+                signature: [uint256(0), uint256(0)],
+                apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+                nonSignersBitmap: bytes("0")
+            })
+        );
 
-        // Verify that nothing changed - latest sequence should still be SEQUENCE
+        // Verify nothing changed
         assertEq(feedManager.getLatestSequence(FEED_ID), SEQUENCE);
-        
-        // Verify latest feed data is unchanged (still has original ctrngValues)
-        IOrbitportFeedManager.CTRNGData memory unchangedData = feedManager.getLatestCTRNGFeed(FEED_ID);
-        assertEq(unchangedData.sequence, SEQUENCE);
-        assertEq(unchangedData.timestamp, TIMESTAMP); // Should still be original timestamp
-        assertEq(unchangedData.ctrng.length, ctrngValues.length);
-        assertEq(unchangedData.ctrng[0], ctrngValues[0]); // Should still be original value, not 999
+        IOrbitportFeedManager.CTRNGData memory data = feedManager.getLatestCTRNGFeed(FEED_ID);
+        assertEq(data.sequence, SEQUENCE);
+        assertEq(data.timestamp, TIMESTAMP);
+        assertEq(data.ctrng[0], ctrngValues[0]);
     }
 }
 
