@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { ICTRNGFeedAdapter } from "../interfaces/ICTRNGFeedAdapter.sol";
-import { ICTRNGFeedManager } from "../interfaces/ICTRNGFeedManager.sol";
+import { IOrbitportFeedAdapter } from "../interfaces/IOrbitportFeedAdapter.sol";
+import { IOrbitportFeedManager } from "../interfaces/IOrbitportFeedManager.sol";
 import { InvalidAddress, FeedNotSupported } from "../interfaces/Errors.sol";
 
-/// @title CTRNGFeedAdapter
+/// @title OrbitportFeedAdapter
 /// @notice Chainlink-compatible adapter for CTRNG feed data
 /// @dev Implements AggregatorV3Interface to provide compatibility with Chainlink price feeds
-contract CTRNGFeedAdapter is ICTRNGFeedAdapter {
+contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
     /// @dev Reference to the CTRNG feed manager
-    ICTRNGFeedManager internal _feedManager;
+    IOrbitportFeedManager internal _feedManager;
 
     /// @dev Feed ID to read from
     uint256 internal _feedId;
@@ -35,7 +35,7 @@ contract CTRNGFeedAdapter is ICTRNGFeedAdapter {
     /// @param feedId Feed ID to read from
     constructor(address feedManager, uint256 feedId) {
         if (feedManager == address(0)) revert InvalidAddress();
-        _feedManager = ICTRNGFeedManager(feedManager);
+        _feedManager = IOrbitportFeedManager(feedManager);
         _feedId = feedId;
         emit FeedManagerSet(feedManager);
         emit FeedIdSet(feedId);
@@ -45,7 +45,7 @@ contract CTRNGFeedAdapter is ICTRNGFeedAdapter {
     /// @param feedManager Address of the CTRNG feed manager
     function setFeedManager(address feedManager) external {
         if (feedManager == address(0)) revert InvalidAddress();
-        _feedManager = ICTRNGFeedManager(feedManager);
+        _feedManager = IOrbitportFeedManager(feedManager);
         emit FeedManagerSet(feedManager);
     }
 
@@ -98,7 +98,7 @@ contract CTRNGFeedAdapter is ICTRNGFeedAdapter {
         override
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        ICTRNGFeedManager.CTRNGData memory data = _feedManager.getLatestCTRNGFeed(_feedId);
+        IOrbitportFeedManager.CTRNGData memory data = _feedManager.getLatestCTRNGFeed(_feedId);
         uint256 answerValue = _deriveAnswer(data.ctrng);
         return (
             uint80(data.sequence),
@@ -122,7 +122,7 @@ contract CTRNGFeedAdapter is ICTRNGFeedAdapter {
         override
         returns (uint80, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        ICTRNGFeedManager.CTRNGData memory data;
+        IOrbitportFeedManager.CTRNGData memory data;
 
         if (roundId == 0) {
             data = _feedManager.getLatestCTRNGFeed(_feedId);

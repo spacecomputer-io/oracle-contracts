@@ -5,7 +5,7 @@ import { OwnableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts
 import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import { IPauserRegistry } from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import { IEOFeedVerifier } from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
-import { ICTRNGFeedManager } from "./interfaces/ICTRNGFeedManager.sol";
+import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
 import {
     InvalidAddress,
     CallerIsNotWhitelisted,
@@ -18,12 +18,12 @@ import {
     SequenceNotFound
 } from "./interfaces/Errors.sol";
 
-/// @title CTRNGFeedManager
-/// @notice The CTRNGFeedManager contract is responsible for receiving CTRNG feed updates from whitelisted publishers.
+/// @title OrbitportFeedManager
+/// @notice The OrbitportFeedManager contract is responsible for receiving CTRNG feed updates from whitelisted publishers.
 /// These updates are verified using the logic in the EOFeedVerifier. Upon successful verification, the CTRNG data
-/// is stored in the CTRNGFeedManager and made available for other smart contracts to read. Only supported feed IDs
+/// is stored in the OrbitportFeedManager and made available for other smart contracts to read. Only supported feed IDs
 /// can be published to the feed manager.
-contract CTRNGFeedManager is ICTRNGFeedManager, OwnableUpgradeable, PausableUpgradeable {
+contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, PausableUpgradeable {
     /// @dev Map of feed id to CTRNG data by sequence (feed id => sequence => CTRNGData)
     mapping(uint256 => mapping(uint256 => CTRNGData)) internal _ctrngFeeds;
 
@@ -268,7 +268,7 @@ contract CTRNGFeedManager is ICTRNGFeedManager, OwnableUpgradeable, PausableUpgr
     /* ============ Internal Functions ============ */
 
     /// @notice Process the verified CTRNG data, validate it and store it. If the timestamp is newer than the
-    /// existing timestamp, updates the CTRNG feed and emits CTRNGUpdated. Otherwise emits SymbolReplay without updating.
+    /// existing timestamp, updates the CTRNG feed and emits CTRNGUpdated. Otherwise skips.
     /// @param data verified CTRNG data, abi encoded (uint256 feedId, uint256 sequence, uint256 timestamp, uint256[] ctrng)
     /// @param blockNumber eoracle chain block number
     function _processVerifiedCTRNG(bytes memory data, uint256 blockNumber) internal {

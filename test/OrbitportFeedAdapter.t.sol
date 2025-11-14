@@ -2,21 +2,21 @@
 pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {CTRNGFeedAdapter} from "../src/adapters/CTRNGFeedAdapter.sol";
-import {CTRNGFeedManager} from "../src/CTRNGFeedManager.sol";
-import {ICTRNGFeedManager} from "../src/interfaces/ICTRNGFeedManager.sol";
+import {OrbitportFeedAdapter} from "../src/adapters/OrbitportFeedAdapter.sol";
+import {OrbitportFeedManager} from "../src/OrbitportFeedManager.sol";
+import {IOrbitportFeedManager} from "../src/interfaces/IOrbitportFeedManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {InvalidAddress} from "../src/interfaces/Errors.sol";
 
 // Import mocks from FeedManager test
-import {MockEOFeedVerifier} from "./CTRNGFeedManager.t.sol";
-import {MockPauserRegistry} from "./CTRNGFeedManager.t.sol";
+import {MockEOFeedVerifier} from "./OrbitportFeedManager.t.sol";
+import {MockPauserRegistry} from "./OrbitportFeedManager.t.sol";
 
-contract CTRNGFeedAdapterTest is Test {
-    CTRNGFeedManager public feedManager;
-    CTRNGFeedAdapter public adapter;
+contract OrbitportFeedAdapterTest is Test {
+    OrbitportFeedManager public feedManager;
+    OrbitportFeedAdapter public adapter;
     MockEOFeedVerifier public verifier;
     MockPauserRegistry public pauserRegistry;
     address public owner;
@@ -37,17 +37,17 @@ contract CTRNGFeedAdapterTest is Test {
         pauserRegistry = new MockPauserRegistry(address(0x3));
 
         vm.startPrank(owner);
-        feedManager = new CTRNGFeedManager();
+        feedManager = new OrbitportFeedManager();
         
         bytes memory initData = abi.encodeWithSelector(
-            CTRNGFeedManager.initialize.selector,
+            OrbitportFeedManager.initialize.selector,
             address(verifier),
             owner,
             address(pauserRegistry),
             feedDeployer
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(feedManager), initData);
-        feedManager = CTRNGFeedManager(payable(address(proxy)));
+        feedManager = OrbitportFeedManager(payable(address(proxy)));
 
         // Setup initial data
         ctrngValues = new uint256[](5);
@@ -98,7 +98,7 @@ contract CTRNGFeedAdapterTest is Test {
         feedManager.updateFeed(input, vParams);
 
         // Create adapter
-        adapter = new CTRNGFeedAdapter(address(feedManager), FEED_ID);
+        adapter = new OrbitportFeedAdapter(address(feedManager), FEED_ID);
     }
 
     function test_LatestRoundData() public {

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { ICTRNGVRFCoordinator } from "./interfaces/ICTRNGVRFCoordinator.sol";
-import { ICTRNGFeedAdapter } from "./interfaces/ICTRNGFeedAdapter.sol";
+import { IOrbitportVRFCoordinator } from "./interfaces/IOrbitportVRFCoordinator.sol";
+import { IOrbitportFeedAdapter } from "./interfaces/IOrbitportFeedAdapter.sol";
 import { InvalidAddress, RequestNotFound } from "./interfaces/Errors.sol";
 
-/// @title CTRNGVRFCoordinator
+/// @title OrbitportVRFCoordinator
 /// @notice Simplified VRF Coordinator contract that uses CTRNG feed data for randomness
 /// @dev Maintains compatibility with Chainlink VRF interface while using CTRNG feed adapter
-contract CTRNGVRFCoordinator is ICTRNGVRFCoordinator {
+contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
     /// @dev Reference to the CTRNG feed adapter
-    ICTRNGFeedAdapter internal _feedAdapter;
+    IOrbitportFeedAdapter internal _feedAdapter;
 
     /// @dev Request counter for generating unique request IDs
     uint256 internal _requestCounter;
@@ -28,7 +28,7 @@ contract CTRNGVRFCoordinator is ICTRNGVRFCoordinator {
     /// @param feedAdapter Address of the CTRNG feed adapter
     constructor(address feedAdapter) {
         if (feedAdapter == address(0)) revert InvalidAddress();
-        _feedAdapter = ICTRNGFeedAdapter(feedAdapter);
+        _feedAdapter = IOrbitportFeedAdapter(feedAdapter);
     }
 
     /// @notice Request random words asynchronously
@@ -109,7 +109,7 @@ contract CTRNGVRFCoordinator is ICTRNGVRFCoordinator {
     /// @param feedAdapter Address of the feed adapter
     function setFeedAdapter(address feedAdapter) external override {
         if (feedAdapter == address(0)) revert InvalidAddress();
-        _feedAdapter = ICTRNGFeedAdapter(feedAdapter);
+        _feedAdapter = IOrbitportFeedAdapter(feedAdapter);
     }
 
     /// @notice Get request data for a request ID

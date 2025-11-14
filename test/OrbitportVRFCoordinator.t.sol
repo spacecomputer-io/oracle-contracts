@@ -2,24 +2,24 @@
 pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {CTRNGVRFCoordinator} from "../src/CTRNGVRFCoordinator.sol";
-import {CTRNGFeedAdapter} from "../src/adapters/CTRNGFeedAdapter.sol";
-import {CTRNGFeedManager} from "../src/CTRNGFeedManager.sol";
-import {ICTRNGVRFCoordinator} from "../src/interfaces/ICTRNGVRFCoordinator.sol";
-import {ICTRNGFeedManager} from "../src/interfaces/ICTRNGFeedManager.sol";
+import {OrbitportVRFCoordinator} from "../src/OrbitportVRFCoordinator.sol";
+import {OrbitportFeedAdapter} from "../src/adapters/OrbitportFeedAdapter.sol";
+import {OrbitportFeedManager} from "../src/OrbitportFeedManager.sol";
+import {IOrbitportVRFCoordinator} from "../src/interfaces/IOrbitportVRFCoordinator.sol";
+import {IOrbitportFeedManager} from "../src/interfaces/IOrbitportFeedManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {InvalidAddress, RequestNotFound} from "../src/interfaces/Errors.sol";
 
 // Import mocks
-import {MockEOFeedVerifier} from "./CTRNGFeedManager.t.sol";
-import {MockPauserRegistry} from "./CTRNGFeedManager.t.sol";
+import {MockEOFeedVerifier} from "./OrbitportFeedManager.t.sol";
+import {MockPauserRegistry} from "./OrbitportFeedManager.t.sol";
 
-contract CTRNGVRFCoordinatorTest is Test {
-    CTRNGFeedManager public feedManager;
-    CTRNGFeedAdapter public adapter;
-    CTRNGVRFCoordinator public vrfCoordinator;
+contract OrbitportVRFCoordinatorTest is Test {
+    OrbitportFeedManager public feedManager;
+    OrbitportFeedAdapter public adapter;
+    OrbitportVRFCoordinator public vrfCoordinator;
     MockEOFeedVerifier public verifier;
     MockPauserRegistry public pauserRegistry;
     address public owner;
@@ -42,17 +42,17 @@ contract CTRNGVRFCoordinatorTest is Test {
         pauserRegistry = new MockPauserRegistry(address(0x3));
 
         vm.startPrank(owner);
-        feedManager = new CTRNGFeedManager();
+        feedManager = new OrbitportFeedManager();
         
         bytes memory initData = abi.encodeWithSelector(
-            CTRNGFeedManager.initialize.selector,
+            OrbitportFeedManager.initialize.selector,
             address(verifier),
             owner,
             address(pauserRegistry),
             feedDeployer
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(feedManager), initData);
-        feedManager = CTRNGFeedManager(payable(address(proxy)));
+        feedManager = OrbitportFeedManager(payable(address(proxy)));
 
         // Setup initial data
         ctrngValues = new uint256[](5);
@@ -103,10 +103,10 @@ contract CTRNGVRFCoordinatorTest is Test {
         feedManager.updateFeed(input, vParams);
 
         // Create adapter
-        adapter = new CTRNGFeedAdapter(address(feedManager), FEED_ID);
+        adapter = new OrbitportFeedAdapter(address(feedManager), FEED_ID);
 
         // Create VRF coordinator
-        vrfCoordinator = new CTRNGVRFCoordinator(address(adapter));
+        vrfCoordinator = new OrbitportVRFCoordinator(address(adapter));
     }
 
     function test_RequestRandomWords() public {
@@ -127,7 +127,7 @@ contract CTRNGVRFCoordinatorTest is Test {
 
         assertEq(requestId, 1);
         
-        ICTRNGVRFCoordinator.RandomWordsRequest memory request = vrfCoordinator.getRequest(requestId);
+        IOrbitportVRFCoordinator.RandomWordsRequest memory request = vrfCoordinator.getRequest(requestId);
         assertEq(request.requester, requester);
         assertEq(request.numWords, numWords);
         

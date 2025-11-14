@@ -3,9 +3,9 @@ pragma solidity 0.8.25;
 
 import { IEOFeedVerifier } from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 
-/// @title ICTRNGFeedManager
-/// @notice Interface for CTRNG Feed Manager contract
-interface ICTRNGFeedManager {
+/// @title IOrbitportFeedManager
+/// @notice Interface for Orbitport Feed Manager contract
+interface IOrbitportFeedManager {
     /// @notice CTRNG data structure
     struct CTRNGData {
         uint256 sequence;

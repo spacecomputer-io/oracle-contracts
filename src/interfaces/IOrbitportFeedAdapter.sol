@@ -34,9 +34,9 @@ interface AggregatorV3Interface {
         returns (uint80, int256, uint256, uint256, uint80);
 }
 
-/// @title ICTRNGFeedAdapter
-/// @notice Interface for CTRNG Feed Adapter contract
-interface ICTRNGFeedAdapter is AggregatorV3Interface {
+/// @title IOrbitportFeedAdapter
+/// @notice Interface for Orbitport Feed Adapter contract
+interface IOrbitportFeedAdapter is AggregatorV3Interface {
     /// @notice Set the feed manager address
     /// @param feedManager Address of the CTRNG feed manager
     function setFeedManager(address feedManager) external;
