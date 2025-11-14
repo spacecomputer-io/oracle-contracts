@@ -58,10 +58,6 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
         });
 
         emit RandomWordsRequested(requestId, msg.sender, keyHash, subId, requestConfirmations, callbackGasLimit, numWords);
-
-        // In simplified version, fulfill immediately
-        // In a real implementation, this would be fulfilled by an oracle after confirmations
-        _fulfillRequest(requestId, numWords);
     }
 
     /// @notice Fulfill random words request
@@ -77,27 +73,31 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
         emit RandomWordsFulfilled(requestId, randomWords);
     }
 
-    /// @notice Get instant randomness synchronously
-    /// @dev Gets latest round data from adapter and combines with gas price and timestamp
-    /// @return randomness Random value derived from latest feed data and gas price
-    function getInstantRandomness() external view override returns (uint256) {
-        // Get latest round data from adapter
-        (, int256 answer, , , ) = _feedAdapter.latestRoundData();
+    /// @notice Get instant randomness synchronously (request + fulfill immediately)
+    /// @dev Gets raw CTRNG data from adapter and combines with gas price for randomness
+    /// @param numWords Number of random words requested
+    /// @return requestId Request ID that was created and fulfilled
+    /// @return randomWords Array of random words
+    function getInstantRandomness(uint32 numWords) external returns (uint256 requestId, uint256[] memory randomWords) {
+        // Create a request
+        requestId = ++_requestCounter;
 
-        // Combine with transaction gas price and block timestamp for uniqueness
-        // This ensures unique randomness even if feed data hasn't updated
-        bytes32 hash = keccak256(
-            abi.encodePacked(
-                answer,
-                tx.gasprice,
-                block.timestamp,
-                block.number,
-                msg.sender
-            )
-        );
+        _requests[requestId] = RandomWordsRequest({
+            requester: msg.sender,
+            keyHash: bytes32(0),
+            subId: 0,
+            requestConfirmations: 0,
+            callbackGasLimit: 0,
+            numWords: numWords,
+            timestamp: block.timestamp
+        });
 
-        return uint256(hash);
+        emit RandomWordsRequested(requestId, msg.sender, bytes32(0), 0, 0, 0, numWords);
+
+        // Fulfill immediately using raw CTRNG data
+        randomWords = _fulfillInstantRequest(requestId, numWords);
     }
+
 
     /// @notice Get the feed adapter address
     /// @return address Feed adapter address
@@ -137,19 +137,21 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
 
     /* ============ Internal Functions ============ */
 
-    /// @notice Fulfill a request internally
+    /// @notice Fulfill an instant request internally using raw CTRNG data
     /// @param requestId Request ID
     /// @param numWords Number of random words to generate
-    function _fulfillRequest(uint256 requestId, uint32 numWords) internal {
+    /// @return randomWords Array of random words
+    function _fulfillInstantRequest(uint256 requestId, uint32 numWords) internal returns (uint256[] memory) {
+        // Get raw CTRNG data from adapter
+        uint256[] memory ctrng = _feedAdapter.getLatestCTRNGData();
+
+        // Generate random words using raw CTRNG data and transaction-specific data
         uint256[] memory randomWords = new uint256[](numWords);
-
-        // Generate random words using latest feed data and request-specific data
-        (, int256 answer, , , ) = _feedAdapter.latestRoundData();
-
         for (uint32 i = 0; i < numWords; i++) {
             bytes32 hash = keccak256(
                 abi.encodePacked(
-                    answer,
+                    ctrng,
+                    tx.gasprice,
                     requestId,
                     i,
                     block.timestamp,
@@ -164,6 +166,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
         _fulfilled[requestId] = true;
 
         emit RandomWordsFulfilled(requestId, randomWords);
+        return randomWords;
     }
 }
 

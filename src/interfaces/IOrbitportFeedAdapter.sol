@@ -52,5 +52,14 @@ interface IOrbitportFeedAdapter is AggregatorV3Interface {
     /// @notice Get the feed ID
     /// @return uint256 Feed ID
     function getFeedId() external view returns (uint256);
+
+    /// @notice Get the latest raw CTRNG data
+    /// @return ctrng Array of raw CTRNG values
+    function getLatestCTRNGData() external view returns (uint256[] memory ctrng);
+
+    /// @notice Get raw CTRNG data for a specific round
+    /// @param roundId Round ID (sequence number). If 0, returns latest round data
+    /// @return ctrng Array of raw CTRNG values
+    function getCTRNGDataByRound(uint80 roundId) external view returns (uint256[] memory ctrng);
 }
 

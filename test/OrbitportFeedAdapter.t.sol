@@ -151,7 +151,7 @@ contract OrbitportFeedAdapterTest is Test {
     }
 
     function test_Decimals() public view {
-        assertEq(adapter.decimals(), 18);
+        assertEq(adapter.decimals(), 0);
     }
 
     function test_Description() public view {
@@ -176,6 +176,27 @@ contract OrbitportFeedAdapterTest is Test {
     function test_SetFeedId() public {
         adapter.setFeedId(999);
         assertEq(adapter.getFeedId(), 999);
+    }
+
+    function test_GetLatestCTRNGData() public view {
+        uint256[] memory ctrng = adapter.getLatestCTRNGData();
+        assertEq(ctrng.length, ctrngValues.length);
+        assertEq(ctrng[0], ctrngValues[0]);
+        assertEq(ctrng[1], ctrngValues[1]);
+        assertEq(ctrng[4], ctrngValues[4]);
+    }
+
+    function test_GetCTRNGDataByRound() public view {
+        uint256[] memory ctrng = adapter.getCTRNGDataByRound(uint80(SEQUENCE));
+        assertEq(ctrng.length, ctrngValues.length);
+        assertEq(ctrng[0], ctrngValues[0]);
+    }
+
+    function test_GetCTRNGDataByRound_Zero() public view {
+        // When roundId is 0, should return latest round data
+        uint256[] memory ctrng = adapter.getCTRNGDataByRound(0);
+        assertEq(ctrng.length, ctrngValues.length);
+        assertEq(ctrng[0], ctrngValues[0]);
     }
 }
 

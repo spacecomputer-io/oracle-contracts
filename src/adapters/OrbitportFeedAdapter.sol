@@ -15,8 +15,8 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
     /// @dev Feed ID to read from
     uint256 internal _feedId;
 
-    /// @dev Decimals for the answer (typically 18)
-    uint8 internal constant DECIMALS = 18;
+    /// @dev Decimals for the answer (0 since its a random value)
+    uint8 internal constant DECIMALS = 0;
 
     /// @dev Description string
     string internal constant DESCRIPTION = "CTRNG Feed";
@@ -140,8 +140,30 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
         );
     }
 
+    /// @notice Get the latest raw CTRNG data
+    /// @return ctrng Array of raw CTRNG values
+    function getLatestCTRNGData() external view returns (uint256[] memory) {
+        IOrbitportFeedManager.CTRNGData memory data = _feedManager.getLatestCTRNGFeed(_feedId);
+        return data.ctrng;
+    }
+
+    /// @notice Get raw CTRNG data for a specific round
+    /// @param roundId Round ID (sequence number). If 0, returns latest round data
+    /// @return ctrng Array of raw CTRNG values
+    function getCTRNGDataByRound(uint80 roundId) external view returns (uint256[] memory) {
+        IOrbitportFeedManager.CTRNGData memory data;
+
+        if (roundId == 0) {
+            data = _feedManager.getLatestCTRNGFeed(_feedId);
+        } else {
+            data = _feedManager.getCTRNGFeedBySequence(_feedId, uint256(roundId));
+        }
+
+        return data.ctrng;
+    }
+
     /// @notice Derive answer value from CTRNG array
-    /// @dev Uses keccak256 hash of the CTRNG array, then takes modulo to get a reasonable uint256 value
+    /// @dev Uses keccak256 hash of the CTRNG array for Chainlink compatibility
     /// @param ctrng Array of CTRNG values
     /// @return uint256 Derived answer value
     function _deriveAnswer(uint256[] memory ctrng) internal pure returns (uint256) {
@@ -150,6 +172,7 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
         }
         // Hash the entire CTRNG array and use it as the answer
         // This provides a deterministic value that represents the randomness
+        // Note: For raw CTRNG data, use getLatestCTRNGData() or getCTRNGDataByRound()
         bytes32 hash = keccak256(abi.encodePacked(ctrng));
         return uint256(hash);
     }

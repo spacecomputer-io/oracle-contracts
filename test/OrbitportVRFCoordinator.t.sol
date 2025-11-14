@@ -131,11 +131,8 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertEq(request.requester, requester);
         assertEq(request.numWords, numWords);
         
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
-        
-        uint256[] memory randomWords = vrfCoordinator.getFulfilledRandomWords(requestId);
-        assertEq(randomWords.length, numWords);
-        assertGt(randomWords[0], 0);
+        // Request should not be fulfilled yet (async like Chainlink)
+        assertFalse(vrfCoordinator.isFulfilled(requestId));
     }
 
     function test_RequestRandomWords_MultipleRequests() public {
@@ -166,33 +163,41 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertEq(requestId1, 1);
         assertEq(requestId2, 2);
         
-        uint256[] memory words1 = vrfCoordinator.getFulfilledRandomWords(requestId1);
-        uint256[] memory words2 = vrfCoordinator.getFulfilledRandomWords(requestId2);
-        
-        // Should be different random values
-        assertNotEq(words1[0], words2[0]);
+        // Both requests should exist but not be fulfilled yet
+        assertFalse(vrfCoordinator.isFulfilled(requestId1));
+        assertFalse(vrfCoordinator.isFulfilled(requestId2));
     }
 
-    function test_GetInstantRandomness() public view {
-        uint256 randomness = vrfCoordinator.getInstantRandomness();
-        assertGt(randomness, 0);
+    function test_GetInstantRandomness() public {
+        uint32 numWords = 2;
+        (uint256 requestId, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
+        
+        assertGt(requestId, 0);
+        assertEq(randomWords.length, numWords);
+        assertGt(randomWords[0], 0);
+        assertGt(randomWords[1], 0);
+        
+        // Verify request was created and fulfilled
+        assertTrue(vrfCoordinator.isFulfilled(requestId));
+        uint256[] memory fulfilled = vrfCoordinator.getFulfilledRandomWords(requestId);
+        assertEq(fulfilled.length, numWords);
     }
 
     function test_GetInstantRandomness_DifferentCalls() public {
-        uint256 randomness1 = vrfCoordinator.getInstantRandomness();
+        uint32 numWords = 1;
+        (, uint256[] memory words1) = vrfCoordinator.getInstantRandomness(numWords);
         
         // Advance time
         vm.warp(block.timestamp + 1);
         
-        uint256 randomness2 = vrfCoordinator.getInstantRandomness();
+        (, uint256[] memory words2) = vrfCoordinator.getInstantRandomness(numWords);
         
-        // Should be different due to timestamp
-        assertNotEq(randomness1, randomness2);
+        // Should be different due to timestamp and gas price
+        assertNotEq(words1[0], words2[0]);
     }
 
     function test_FulfillRandomWords() public {
-        // Create a new request that won't auto-fulfill
-        // Since our simplified version auto-fulfills, we'll test the fulfill function differently
+        // Create a request
         bytes32 keyHash = keccak256("test");
         uint64 subId = 1;
         uint16 requestConfirmations = 3;
@@ -208,12 +213,24 @@ contract OrbitportVRFCoordinatorTest is Test {
             numWords
         );
 
-        // Request is already fulfilled, verify it
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
+        // Request should not be fulfilled yet
+        assertFalse(vrfCoordinator.isFulfilled(requestId));
         
+        // Now fulfill it manually
+        uint256[] memory randomWords = new uint256[](numWords);
+        randomWords[0] = 123;
+        randomWords[1] = 456;
+        randomWords[2] = 789;
+        
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        
+        // Now it should be fulfilled
+        assertTrue(vrfCoordinator.isFulfilled(requestId));
         uint256[] memory fulfilled = vrfCoordinator.getFulfilledRandomWords(requestId);
         assertEq(fulfilled.length, numWords);
-        assertGt(fulfilled[0], 0);
+        assertEq(fulfilled[0], 123);
+        assertEq(fulfilled[1], 456);
+        assertEq(fulfilled[2], 789);
     }
 
     function test_FulfillRandomWords_InvalidRequest() public {
@@ -240,10 +257,12 @@ contract OrbitportVRFCoordinatorTest is Test {
             numWords
         );
 
-        // Try to fulfill again (should fail since already fulfilled)
+        // Fulfill once
         uint256[] memory randomWords = new uint256[](numWords);
         randomWords[0] = 123;
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
         
+        // Try to fulfill again (should fail since already fulfilled)
         vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, requestId));
         vrfCoordinator.fulfillRandomWords(requestId, randomWords);
     }

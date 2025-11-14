@@ -52,9 +52,11 @@ interface IOrbitportVRFCoordinator {
     /// @param randomWords Array of random words
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external;
 
-    /// @notice Get instant randomness synchronously
-    /// @return randomness Random value derived from latest feed data and gas price
-    function getInstantRandomness() external view returns (uint256);
+    /// @notice Get instant randomness synchronously (request + fulfill immediately)
+    /// @param numWords Number of random words requested
+    /// @return requestId Request ID that was created and fulfilled
+    /// @return randomWords Array of random words
+    function getInstantRandomness(uint32 numWords) external returns (uint256 requestId, uint256[] memory randomWords);
 
     /// @notice Get the feed adapter address
     /// @return address Feed adapter address
