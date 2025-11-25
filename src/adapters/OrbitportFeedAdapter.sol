@@ -4,11 +4,15 @@ pragma solidity 0.8.25;
 import { IOrbitportFeedAdapter } from "../interfaces/IOrbitportFeedAdapter.sol";
 import { IOrbitportFeedManager } from "../interfaces/IOrbitportFeedManager.sol";
 import { InvalidAddress, FeedNotSupported } from "../interfaces/Errors.sol";
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /// @title OrbitportFeedAdapter
 /// @notice Chainlink-compatible adapter for CTRNG feed data
 /// @dev Implements AggregatorV3Interface to provide compatibility with Chainlink price feeds
-contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
+contract OrbitportFeedAdapter is IOrbitportFeedAdapter, AccessControl {
+    /// @dev Role allowed to access feed data
+    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
+
     /// @dev Reference to the CTRNG feed manager
     IOrbitportFeedManager internal _feedManager;
 
@@ -37,6 +41,7 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
         if (feedManager == address(0)) revert InvalidAddress();
         _feedManager = IOrbitportFeedManager(feedManager);
         _feedId = feedId;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         emit FeedManagerSet(feedManager);
         emit FeedIdSet(feedId);
     }
@@ -94,8 +99,8 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
     /// @return answeredInRound Round ID in which the answer was computed
     function latestRoundData()
         external
-        view
         override
+        onlyRole(RETRIEVER_ROLE)
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         IOrbitportFeedManager.CTRNGData memory data = _feedManager.getLatestCTRNGFeed(_feedId);
@@ -118,8 +123,8 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
     /// @return answeredInRound Round ID in which the answer was computed
     function getRoundData(uint80 roundId)
         external
-        view
         override
+        onlyRole(RETRIEVER_ROLE)
         returns (uint80, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         IOrbitportFeedManager.CTRNGData memory data;
@@ -142,7 +147,7 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
 
     /// @notice Get the latest raw CTRNG data
     /// @return ctrng Array of raw CTRNG values
-    function getLatestCTRNGData() external view returns (uint256[] memory) {
+    function getLatestCTRNGData() external onlyRole(RETRIEVER_ROLE) returns (uint256[] memory) {
         IOrbitportFeedManager.CTRNGData memory data = _feedManager.getLatestCTRNGFeed(_feedId);
         return data.ctrng;
     }
@@ -150,7 +155,7 @@ contract OrbitportFeedAdapter is IOrbitportFeedAdapter {
     /// @notice Get raw CTRNG data for a specific round
     /// @param roundId Round ID (sequence number). If 0, returns latest round data
     /// @return ctrng Array of raw CTRNG values
-    function getCTRNGDataByRound(uint80 roundId) external view returns (uint256[] memory) {
+    function getCTRNGDataByRound(uint80 roundId) external onlyRole(RETRIEVER_ROLE) returns (uint256[] memory) {
         IOrbitportFeedManager.CTRNGData memory data;
 
         if (roundId == 0) {

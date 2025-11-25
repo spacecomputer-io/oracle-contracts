@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import { OwnableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IPauserRegistry } from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import { IEOFeedVerifier } from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
@@ -23,7 +24,10 @@ import {
 /// These updates are verified using the logic in the EOFeedVerifier. Upon successful verification, the CTRNG data
 /// is stored in the OrbitportFeedManager and made available for other smart contracts to read. Only supported feed IDs
 /// can be published to the feed manager.
-contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, PausableUpgradeable {
+contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
+    /// @dev Role allowed to access feed data and view functions
+    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
+
     /// @dev Map of feed id to CTRNG data by sequence (feed id => sequence => CTRNGData)
     mapping(uint256 => mapping(uint256 => CTRNGData)) internal _ctrngFeeds;
 
@@ -104,6 +108,8 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     {
         __Ownable_init(owner);
         __Pausable_init();
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _feedVerifier = IEOFeedVerifier(feedVerifier);
         _pauserRegistry = IPauserRegistry(pauserRegistry);
         _feedDeployer = feedDeployer;
@@ -211,7 +217,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Get the latest CTRNG feed data for a feed ID
     /// @param feedId Feed ID
     /// @return CTRNGData struct
-    function getLatestCTRNGFeed(uint256 feedId) external view returns (CTRNGData memory) {
+    function getLatestCTRNGFeed(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         uint256 latestSequence = _latestSequences[feedId];
         if (latestSequence == 0) revert SequenceNotFound(latestSequence);
@@ -225,7 +231,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     function getCTRNGFeedBySequence(
         uint256 feedId,
         uint256 sequence
-    ) external view returns (CTRNGData memory) {
+    ) external onlyRole(RETRIEVER_ROLE) returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         CTRNGData memory data = _ctrngFeeds[feedId][sequence];
         if (data.sequence == 0 && sequence != 0) revert SequenceNotFound(sequence);
@@ -235,33 +241,33 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Check if a publisher is whitelisted
     /// @param publisher Publisher address
     /// @return bool True if whitelisted
-    function isWhitelistedPublisher(address publisher) external view returns (bool) {
+    function isWhitelistedPublisher(address publisher) external onlyRole(RETRIEVER_ROLE) returns (bool) {
         return _whitelistedPublishers[publisher];
     }
 
     /// @notice Check if a feed ID is supported
     /// @param feedId Feed ID
     /// @return bool True if supported
-    function isSupportedFeed(uint256 feedId) external view returns (bool) {
+    function isSupportedFeed(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (bool) {
         return _supportedFeedIds[feedId];
     }
 
     /// @notice Get the feed deployer address
     /// @return address Feed deployer address
-    function getFeedDeployer() external view returns (address) {
+    function getFeedDeployer() external onlyRole(RETRIEVER_ROLE) returns (address) {
         return _feedDeployer;
     }
 
     /// @notice Get the feed verifier address
     /// @return IEOFeedVerifier Feed verifier contract
-    function getFeedVerifier() external view returns (IEOFeedVerifier) {
+    function getFeedVerifier() external onlyRole(RETRIEVER_ROLE) returns (IEOFeedVerifier) {
         return _feedVerifier;
     }
 
     /// @notice Get the latest sequence for a feed ID
     /// @param feedId Feed ID
     /// @return uint256 Latest sequence number
-    function getLatestSequence(uint256 feedId) external view returns (uint256) {
+    function getLatestSequence(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (uint256) {
         return _latestSequences[feedId];
     }
 

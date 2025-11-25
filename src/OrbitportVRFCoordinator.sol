@@ -4,11 +4,15 @@ pragma solidity 0.8.25;
 import { IOrbitportVRFCoordinator } from "./interfaces/IOrbitportVRFCoordinator.sol";
 import { IOrbitportFeedAdapter } from "./interfaces/IOrbitportFeedAdapter.sol";
 import { InvalidAddress, RequestNotFound } from "./interfaces/Errors.sol";
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /// @title OrbitportVRFCoordinator
 /// @notice Simplified VRF Coordinator contract that uses CTRNG feed data for randomness
 /// @dev Maintains compatibility with Chainlink VRF interface while using CTRNG feed adapter
-contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
+contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
+    /// @dev Role allowed to request instant randomness
+    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
+
     /// @dev Reference to the CTRNG feed adapter
     IOrbitportFeedAdapter internal _feedAdapter;
 
@@ -24,11 +28,15 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
     /// @dev Map of request ID to fulfillment status
     mapping(uint256 => bool) internal _fulfilled;
 
+    /// @dev Map of consumed randomness values to ensure global uniqueness
+    mapping(uint256 => bool) internal _consumedRandomness;
+
     /// @notice Constructor
     /// @param feedAdapter Address of the CTRNG feed adapter
     constructor(address feedAdapter) {
         if (feedAdapter == address(0)) revert InvalidAddress();
         _feedAdapter = IOrbitportFeedAdapter(feedAdapter);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /// @notice Request random words asynchronously
@@ -78,7 +86,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
     /// @param numWords Number of random words requested
     /// @return requestId Request ID that was created and fulfilled
     /// @return randomWords Array of random words
-    function getInstantRandomness(uint32 numWords) external returns (uint256 requestId, uint256[] memory randomWords) {
+    function getInstantRandomness(uint32 numWords) external onlyRole(RETRIEVER_ROLE) returns (uint256 requestId, uint256[] memory randomWords) {
         // Create a request
         requestId = ++_requestCounter;
 
@@ -148,18 +156,35 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator {
         // Generate random words using raw CTRNG data and transaction-specific data
         uint256[] memory randomWords = new uint256[](numWords);
         for (uint32 i = 0; i < numWords; i++) {
-            bytes32 hash = keccak256(
-                abi.encodePacked(
-                    ctrng,
-                    tx.gasprice,
-                    requestId,
-                    i,
-                    block.timestamp,
-                    block.number,
-                    msg.sender
-                )
-            );
-            randomWords[i] = uint256(hash);
+            uint256 nonce = 0;
+            uint256 randomWord;
+            bool unique = false;
+            
+            // Keep regenerating until we find a unique random word
+            while (!unique) {
+                bytes32 hash = keccak256(
+                    abi.encodePacked(
+                        ctrng,
+                        tx.gasprice,
+                        requestId,
+                        i,
+                        block.timestamp,
+                        block.number,
+                        msg.sender,
+                        nonce
+                    )
+                );
+                randomWord = uint256(hash);
+                
+                if (!_consumedRandomness[randomWord]) {
+                    unique = true;
+                    _consumedRandomness[randomWord] = true;
+                } else {
+                    nonce++;
+                }
+            }
+            
+            randomWords[i] = randomWord;
         }
 
         _fulfilledRandomWords[requestId] = randomWords;
