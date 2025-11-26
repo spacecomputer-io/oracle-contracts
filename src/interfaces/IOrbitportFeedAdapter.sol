@@ -18,7 +18,6 @@ interface AggregatorV3Interface {
     /// @return answeredInRound Round ID in which the answer was computed
     function latestRoundData()
         external
-        view
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 
     /// @notice Get round data for a specific round
@@ -30,7 +29,6 @@ interface AggregatorV3Interface {
     /// @return answeredInRound Round ID in which the answer was computed
     function getRoundData(uint80 roundId)
         external
-        view
         returns (uint80, int256, uint256, uint256, uint80);
 }
 
@@ -55,11 +53,11 @@ interface IOrbitportFeedAdapter is AggregatorV3Interface {
 
     /// @notice Get the latest raw CTRNG data
     /// @return ctrng Array of raw CTRNG values
-    function getLatestCTRNGData() external view returns (uint256[] memory ctrng);
+    function getLatestCTRNGData() external returns (uint256[] memory ctrng);
 
     /// @notice Get raw CTRNG data for a specific round
     /// @param roundId Round ID (sequence number). If 0, returns latest round data
     /// @return ctrng Array of raw CTRNG values
-    function getCTRNGDataByRound(uint80 roundId) external view returns (uint256[] memory ctrng);
+    function getCTRNGDataByRound(uint80 roundId) external returns (uint256[] memory ctrng);
 }
 

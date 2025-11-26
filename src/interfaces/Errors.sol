@@ -31,3 +31,6 @@ error SequenceNotFound(uint256 sequence);
 /// @notice Thrown when request ID is not found
 error RequestNotFound(uint256 requestId);
 
+/// @notice Thrown when caller is not a retriever
+error CallerIsNotRetriever(address caller);
+

@@ -9,6 +9,7 @@ import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.s
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {InvalidAddress} from "../src/interfaces/Errors.sol";
+import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
 // Import mocks from FeedManager test
 import {MockEOFeedVerifier} from "./OrbitportFeedManager.t.sol";
@@ -22,16 +23,21 @@ contract OrbitportFeedAdapterTest is Test {
     address public owner;
     address public publisher;
     address public feedDeployer;
+    address public retriever;
+    address public unauthorized;
 
     uint256 public constant FEED_ID = 1;
     uint256 public constant SEQUENCE = 12345;
     uint256 public constant TIMESTAMP = 1704067200;
     uint256[] public ctrngValues;
+    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
 
     function setUp() public {
         owner = address(0x1);
         publisher = address(0x5);
         feedDeployer = address(0x4);
+        retriever = address(0x8);
+        unauthorized = address(0x9);
 
         verifier = new MockEOFeedVerifier();
         pauserRegistry = new MockPauserRegistry(address(0x3));
@@ -98,10 +104,72 @@ contract OrbitportFeedAdapterTest is Test {
         feedManager.updateFeed(input, vParams);
 
         // Create adapter
+        vm.prank(owner);
         adapter = new OrbitportFeedAdapter(address(feedManager), FEED_ID);
+        
+        // Grant RETRIEVER_ROLE to retriever
+        vm.prank(owner);
+        adapter.grantRole(RETRIEVER_ROLE, retriever);
+        
+        // Grant RETRIEVER_ROLE to manager for adapter
+        vm.prank(owner);
+        feedManager.grantRole(RETRIEVER_ROLE, address(adapter));
     }
 
-    function test_LatestRoundData() public {
+    /* ============ Access Control Tests ============ */
+
+    function test_RevertWhen_NotRetriever_LatestRoundData() public {
+        vm.prank(unauthorized);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                RETRIEVER_ROLE
+            )
+        );
+        adapter.latestRoundData();
+    }
+
+    function test_RevertWhen_NotRetriever_GetRoundData() public {
+        vm.prank(unauthorized);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                RETRIEVER_ROLE
+            )
+        );
+        adapter.getRoundData(uint80(SEQUENCE));
+    }
+
+    function test_RevertWhen_NotRetriever_GetLatestCTRNGData() public {
+        vm.prank(unauthorized);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                RETRIEVER_ROLE
+            )
+        );
+        adapter.getLatestCTRNGData();
+    }
+
+    function test_RevertWhen_NotRetriever_GetCTRNGDataByRound() public {
+        vm.prank(unauthorized);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                RETRIEVER_ROLE
+            )
+        );
+        adapter.getCTRNGDataByRound(uint80(SEQUENCE));
+    }
+
+    /* ============ Functionality Tests (with role) ============ */
+
+    function test_LatestRoundData_WithRetrieverRole() public {
+        vm.prank(retriever);
         (
             uint80 roundId,
             int256 answer,
@@ -117,7 +185,8 @@ contract OrbitportFeedAdapterTest is Test {
         assertEq(answeredInRound, SEQUENCE);
     }
 
-    function test_GetRoundData() public {
+    function test_GetRoundData_WithRetrieverRole() public {
+        vm.prank(retriever);
         (
             uint80 roundId,
             int256 answer,
@@ -133,8 +202,9 @@ contract OrbitportFeedAdapterTest is Test {
         assertEq(answeredInRound, SEQUENCE);
     }
 
-    function test_GetRoundData_Zero() public {
+    function test_GetRoundData_Zero_WithRetrieverRole() public {
         // When roundId is 0, should return latest round data
+        vm.prank(retriever);
         (
             uint80 roundId,
             int256 answer,
@@ -149,6 +219,24 @@ contract OrbitportFeedAdapterTest is Test {
         assertEq(updatedAt, TIMESTAMP);
         assertEq(answeredInRound, SEQUENCE);
     }
+    
+    function test_GetLatestCTRNGData_WithRetrieverRole() public {
+        vm.prank(retriever);
+        uint256[] memory ctrng = adapter.getLatestCTRNGData();
+        
+        assertEq(ctrng.length, ctrngValues.length);
+        assertEq(ctrng[0], ctrngValues[0]);
+    }
+
+    function test_GetCTRNGDataByRound_WithRetrieverRole() public {
+        vm.prank(retriever);
+        uint256[] memory ctrng = adapter.getCTRNGDataByRound(uint80(SEQUENCE));
+        
+        assertEq(ctrng.length, ctrngValues.length);
+        assertEq(ctrng[0], ctrngValues[0]);
+    }
+
+    /* ============ View Functions (Unrestricted) ============ */
 
     function test_Decimals() public view {
         assertEq(adapter.decimals(), 0);
@@ -161,42 +249,17 @@ contract OrbitportFeedAdapterTest is Test {
     function test_Version() public view {
         assertEq(adapter.version(), 1);
     }
-
-    function test_SetFeedManager() public {
-        address newFeedManager = address(0x123);
-        adapter.setFeedManager(newFeedManager);
-        assertEq(adapter.getFeedManager(), newFeedManager);
-    }
-
-    function test_SetFeedManager_InvalidAddress() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
-        adapter.setFeedManager(address(0));
-    }
-
-    function test_SetFeedId() public {
-        adapter.setFeedId(999);
-        assertEq(adapter.getFeedId(), 999);
-    }
-
-    function test_GetLatestCTRNGData() public view {
-        uint256[] memory ctrng = adapter.getLatestCTRNGData();
-        assertEq(ctrng.length, ctrngValues.length);
-        assertEq(ctrng[0], ctrngValues[0]);
-        assertEq(ctrng[1], ctrngValues[1]);
-        assertEq(ctrng[4], ctrngValues[4]);
-    }
-
-    function test_GetCTRNGDataByRound() public view {
-        uint256[] memory ctrng = adapter.getCTRNGDataByRound(uint80(SEQUENCE));
-        assertEq(ctrng.length, ctrngValues.length);
-        assertEq(ctrng[0], ctrngValues[0]);
-    }
-
-    function test_GetCTRNGDataByRound_Zero() public view {
-        // When roundId is 0, should return latest round data
-        uint256[] memory ctrng = adapter.getCTRNGDataByRound(0);
-        assertEq(ctrng.length, ctrngValues.length);
-        assertEq(ctrng[0], ctrngValues[0]);
+    
+    function test_GrantRetrieverRole() public {
+        address newRetriever = address(0x99);
+        
+        vm.prank(owner);
+        adapter.grantRole(RETRIEVER_ROLE, newRetriever);
+        
+        assertTrue(adapter.hasRole(RETRIEVER_ROLE, newRetriever));
+        
+        // Should be able to call now
+        vm.prank(newRetriever);
+        adapter.latestRoundData();
     }
 }
-

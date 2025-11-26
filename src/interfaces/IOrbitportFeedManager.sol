@@ -56,7 +56,7 @@ interface IOrbitportFeedManager {
     /// @notice Get the latest CTRNG feed data for a feed ID
     /// @param feedId Feed ID
     /// @return CTRNGData struct containing sequence, timestamp, ctrng array, and blockNumber
-    function getLatestCTRNGFeed(uint256 feedId) external view returns (CTRNGData memory);
+    function getLatestCTRNGFeed(uint256 feedId) external returns (CTRNGData memory);
 
     /// @notice Get CTRNG feed data by feed ID and sequence
     /// @param feedId Feed ID
@@ -65,24 +65,24 @@ interface IOrbitportFeedManager {
     function getCTRNGFeedBySequence(
         uint256 feedId,
         uint256 sequence
-    ) external view returns (CTRNGData memory);
+    ) external returns (CTRNGData memory);
 
     /// @notice Check if a publisher is whitelisted
     /// @param publisher Publisher address
     /// @return bool True if whitelisted
-    function isWhitelistedPublisher(address publisher) external view returns (bool);
+    function isWhitelistedPublisher(address publisher) external returns (bool);
 
     /// @notice Check if a feed ID is supported
     /// @param feedId Feed ID
     /// @return bool True if supported
-    function isSupportedFeed(uint256 feedId) external view returns (bool);
+    function isSupportedFeed(uint256 feedId) external returns (bool);
 
     /// @notice Get the feed verifier address
     /// @return IEOFeedVerifier Feed verifier contract
-    function getFeedVerifier() external view returns (IEOFeedVerifier);
+    function getFeedVerifier() external returns (IEOFeedVerifier);
 
     /// @notice Get the feed deployer address
     /// @return address Feed deployer address
-    function getFeedDeployer() external view returns (address);
+    function getFeedDeployer() external returns (address);
 }
 

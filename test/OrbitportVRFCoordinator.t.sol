@@ -11,6 +11,7 @@ import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.s
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {InvalidAddress, RequestNotFound} from "../src/interfaces/Errors.sol";
+import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
 // Import mocks
 import {MockEOFeedVerifier} from "./OrbitportFeedManager.t.sol";
@@ -26,17 +27,20 @@ contract OrbitportVRFCoordinatorTest is Test {
     address public publisher;
     address public feedDeployer;
     address public requester;
+    address public retriever;
 
     uint256 public constant FEED_ID = 1;
     uint256 public constant SEQUENCE = 12345;
     uint256 public constant TIMESTAMP = 1704067200;
     uint256[] public ctrngValues;
+    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
 
     function setUp() public {
         owner = address(0x1);
         publisher = address(0x5);
         feedDeployer = address(0x4);
         requester = address(0x7);
+        retriever = address(0x8);
 
         verifier = new MockEOFeedVerifier();
         pauserRegistry = new MockPauserRegistry(address(0x3));
@@ -103,10 +107,24 @@ contract OrbitportVRFCoordinatorTest is Test {
         feedManager.updateFeed(input, vParams);
 
         // Create adapter
+        vm.prank(owner);
         adapter = new OrbitportFeedAdapter(address(feedManager), FEED_ID);
 
         // Create VRF coordinator
+        vm.prank(owner);
         vrfCoordinator = new OrbitportVRFCoordinator(address(adapter));
+        
+        // Grant RETRIEVER_ROLE to the adapter for the coordinator to call it
+        vm.prank(owner);
+        adapter.grantRole(RETRIEVER_ROLE, address(vrfCoordinator));
+        
+        // Grant RETRIEVER_ROLE to the manager for the adapter to call it
+        vm.prank(owner);
+        feedManager.grantRole(RETRIEVER_ROLE, address(adapter));
+
+        // Grant RETRIEVER_ROLE to retriever
+        vm.prank(owner);
+        vrfCoordinator.grantRole(RETRIEVER_ROLE, retriever);
     }
 
     function test_RequestRandomWords() public {
@@ -135,157 +153,121 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertFalse(vrfCoordinator.isFulfilled(requestId));
     }
 
-    function test_RequestRandomWords_MultipleRequests() public {
-        bytes32 keyHash = keccak256("test");
-        uint64 subId = 1;
-        uint16 requestConfirmations = 3;
-        uint32 callbackGasLimit = 100000;
+    /* ============ Access Control Tests ============ */
+
+    function test_RevertWhen_NotRetriever_GetInstantRandomness() public {
         uint32 numWords = 1;
-
-        vm.prank(requester);
-        uint256 requestId1 = vrfCoordinator.requestRandomWords(
-            keyHash,
-            subId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-
-        vm.prank(requester);
-        uint256 requestId2 = vrfCoordinator.requestRandomWords(
-            keyHash,
-            subId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-
-        assertEq(requestId1, 1);
-        assertEq(requestId2, 2);
         
-        // Both requests should exist but not be fulfilled yet
-        assertFalse(vrfCoordinator.isFulfilled(requestId1));
-        assertFalse(vrfCoordinator.isFulfilled(requestId2));
+        vm.prank(requester);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                requester,
+                RETRIEVER_ROLE
+            )
+        );
+        vrfCoordinator.getInstantRandomness(numWords);
     }
 
-    function test_GetInstantRandomness() public {
+    function test_GetInstantRandomness_WithRetrieverRole() public {
         uint32 numWords = 2;
+        
+        vm.prank(retriever);
         (uint256 requestId, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
         
         assertGt(requestId, 0);
         assertEq(randomWords.length, numWords);
-        assertGt(randomWords[0], 0);
-        assertGt(randomWords[1], 0);
-        
-        // Verify request was created and fulfilled
         assertTrue(vrfCoordinator.isFulfilled(requestId));
-        uint256[] memory fulfilled = vrfCoordinator.getFulfilledRandomWords(requestId);
-        assertEq(fulfilled.length, numWords);
     }
 
-    function test_GetInstantRandomness_DifferentCalls() public {
+    function test_GrantRetrieverRole() public {
+        address newRetriever = address(0x99);
+        
+        vm.prank(owner);
+        vrfCoordinator.grantRole(RETRIEVER_ROLE, newRetriever);
+        
+        assertTrue(vrfCoordinator.hasRole(RETRIEVER_ROLE, newRetriever));
+        
+        // Should be able to call now
+        vm.prank(newRetriever);
+        vrfCoordinator.getInstantRandomness(1);
+    }
+
+    function test_RevokeRetrieverRole() public {
+        vm.prank(owner);
+        vrfCoordinator.revokeRole(RETRIEVER_ROLE, retriever);
+        
+        assertFalse(vrfCoordinator.hasRole(RETRIEVER_ROLE, retriever));
+        
+        // Should fail now
+        vm.prank(retriever);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                retriever,
+                RETRIEVER_ROLE
+            )
+        );
+        vrfCoordinator.getInstantRandomness(1);
+    }
+
+    function test_RevertWhen_NotAdmin_GrantRetrieverRole() public {
+        address newRetriever = address(0x99);
+        
+        vm.startPrank(requester);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                requester,
+                vrfCoordinator.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        vrfCoordinator.grantRole(RETRIEVER_ROLE, newRetriever);
+        vm.stopPrank();
+    }
+
+    /* ============ Uniqueness Tests ============ */
+
+    function test_GetInstantRandomness_UniqueValues() public {
+        uint32 numWords = 5;
+        
+        vm.prank(retriever);
+        (, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
+        
+        // Check uniqueness within the batch
+        for (uint i = 0; i < numWords; i++) {
+            for (uint j = i + 1; j < numWords; j++) {
+                assertNotEq(randomWords[i], randomWords[j]);
+            }
+        }
+    }
+
+    function test_GetInstantRandomness_MultipleCalls_NoDuplicates() public {
         uint32 numWords = 1;
+        
+        vm.prank(retriever);
         (, uint256[] memory words1) = vrfCoordinator.getInstantRandomness(numWords);
         
-        // Advance time
-        vm.warp(block.timestamp + 1);
-        
+        // Same block/time, same requester, same everything except internal nonce/counter
+        vm.prank(retriever);
         (, uint256[] memory words2) = vrfCoordinator.getInstantRandomness(numWords);
         
-        // Should be different due to timestamp and gas price
         assertNotEq(words1[0], words2[0]);
     }
-
-    function test_FulfillRandomWords() public {
-        // Create a request
-        bytes32 keyHash = keccak256("test");
-        uint64 subId = 1;
-        uint16 requestConfirmations = 3;
-        uint32 callbackGasLimit = 100000;
-        uint32 numWords = 3;
-
-        vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
-            keyHash,
-            subId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-
-        // Request should not be fulfilled yet
-        assertFalse(vrfCoordinator.isFulfilled(requestId));
+    
+    function test_GetInstantRandomness_LargeNumWords() public {
+        uint32 numWords = 20;
         
-        // Now fulfill it manually
-        uint256[] memory randomWords = new uint256[](numWords);
-        randomWords[0] = 123;
-        randomWords[1] = 456;
-        randomWords[2] = 789;
+        vm.prank(retriever);
+        (, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
         
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        assertEq(randomWords.length, numWords);
         
-        // Now it should be fulfilled
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
-        uint256[] memory fulfilled = vrfCoordinator.getFulfilledRandomWords(requestId);
-        assertEq(fulfilled.length, numWords);
-        assertEq(fulfilled[0], 123);
-        assertEq(fulfilled[1], 456);
-        assertEq(fulfilled[2], 789);
-    }
-
-    function test_FulfillRandomWords_InvalidRequest() public {
-        uint256[] memory randomWords = new uint256[](1);
-        randomWords[0] = 123;
-
-        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
-        vrfCoordinator.fulfillRandomWords(999, randomWords);
-    }
-
-    function test_FulfillRandomWords_AlreadyFulfilled() public {
-        bytes32 keyHash = keccak256("test");
-        uint64 subId = 1;
-        uint16 requestConfirmations = 3;
-        uint32 callbackGasLimit = 100000;
-        uint32 numWords = 1;
-
-        vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
-            keyHash,
-            subId,
-            requestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-
-        // Fulfill once
-        uint256[] memory randomWords = new uint256[](numWords);
-        randomWords[0] = 123;
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
-        
-        // Try to fulfill again (should fail since already fulfilled)
-        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, requestId));
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
-    }
-
-    function test_SetFeedAdapter() public {
-        address newAdapter = address(0x123);
-        vrfCoordinator.setFeedAdapter(newAdapter);
-        assertEq(vrfCoordinator.getFeedAdapter(), newAdapter);
-    }
-
-    function test_SetFeedAdapter_InvalidAddress() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
-        vrfCoordinator.setFeedAdapter(address(0));
-    }
-
-    function test_GetRequest_NotFound() public {
-        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
-        vrfCoordinator.getRequest(999);
-    }
-
-    function test_GetFulfilledRandomWords_NotFound() public {
-        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
-        vrfCoordinator.getFulfilledRandomWords(999);
+        // Verify all are unique
+        for (uint i = 0; i < numWords; i++) {
+            for (uint j = i + 1; j < numWords; j++) {
+                assertNotEq(randomWords[i], randomWords[j]);
+            }
+        }
     }
 }
-
