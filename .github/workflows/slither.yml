@@ -17,6 +17,11 @@ jobs:
           submodules: recursive # fetches contents of lib/
           fetch-depth: 0
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
       - name: run Slither
         uses: crytic/slither-action@v0.4.0 # it detects foundry.toml automatically
         id: slither
