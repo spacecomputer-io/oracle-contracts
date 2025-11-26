@@ -1,0 +1,32 @@
+name: Slither Analysis
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        security-events: write
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # fetches contents of lib/
+          fetch-depth: 0
+
+      - name: run Slither
+        uses: crytic/slither-action@v0.4.0 # it detects foundry.toml automatically
+        id: slither
+        with:
+          target: 'src/'
+          slither-config: 'slither.config.json'
+          fail-on: none # dryrun for now, we could set to 'high' or 'medium' to block PRs on findings
+          sarif: results.sarif
+      
+      - name: upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
