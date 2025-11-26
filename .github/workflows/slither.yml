@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  analyze:
+  slither-analysis:
     runs-on: ubuntu-latest
     permissions:
         contents: read
@@ -25,6 +25,7 @@ jobs:
           slither-config: 'slither.config.json'
           fail-on: none # dryrun for now, we could set to 'high' or 'medium' to block PRs on findings
           sarif: results.sarif
+          slither-args: '--compile-force-framework foundry'
       
       - name: upload SARIF file
         uses: github/codeql-action/upload-sarif@v3

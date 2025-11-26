@@ -1,8 +1,5 @@
 {
-  "filter_paths": [
-    "lib",
-    "test"
-  ],
+  "filter_paths": "lib,test",
   "exclude_low": false,
   "exclude_informational": false,
   "solc_remaps": [
