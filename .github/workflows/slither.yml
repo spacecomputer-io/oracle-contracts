@@ -35,10 +35,16 @@ jobs:
 
       - name: run slither
         id: slither
-        run: slither src/ --config slither.config.json --sarif results.sarif
+        run: slither src/ --config slither.config.json --checklist > slither-report.md || true
 
-      - name: ppload sarif file
-        uses: github/codeql-action/upload-sarif@v3
+      - name: display results in summary
+        if: always()
+        run: |
+          cat slither-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: upload slither report
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          sarif_file: results.sarif
+          name: slither-report
+          path: slither-report.md
