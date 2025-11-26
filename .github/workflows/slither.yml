@@ -5,34 +5,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  slither-analysis:
+  slither-analyze:
     runs-on: ubuntu-latest
     permissions:
-        contents: read
-        security-events: write
+      contents: read
+      security-events: write 
+      
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive # fetches contents of lib/
+          submodules: recursive 
           fetch-depth: 0
 
-      - name: Install Foundry
+      - name: install foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
 
-      - name: run Slither
-        uses: crytic/slither-action@v0.4.0 # it detects foundry.toml automatically
-        id: slither
+      - name: set up python
+        uses: actions/setup-python@v5
         with:
-          target: 'src/'
-          slither-config: 'slither.config.json'
-          fail-on: none # dryrun for now, we could set to 'high' or 'medium' to block PRs on findings
-          sarif: results.sarif
-          slither-args: '--compile-force-framework foundry'
-      
-      - name: upload SARIF file
+          python-version: '3.10'
+
+      - name: install slither
+        run: |
+          pip3 install slither-analyzer
+          slither --version
+
+      - name: run slither
+        id: slither
+        run: slither src/ --config slither.config.json --sarif results.sarif
+
+      - name: ppload sarif file
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: results.sarif
