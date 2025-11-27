@@ -2,22 +2,22 @@
 pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {OrbitportVRFCoordinator} from "../src/OrbitportVRFCoordinator.sol";
-import {OrbitportFeedAdapter} from "../src/adapters/OrbitportFeedAdapter.sol";
-import {OrbitportFeedManager} from "../src/OrbitportFeedManager.sol";
-import {IOrbitportVRFCoordinator} from "../src/interfaces/IOrbitportVRFCoordinator.sol";
-import {IOrbitportFeedManager} from "../src/interfaces/IOrbitportFeedManager.sol";
+import {OrbitportVRFCoordinator} from "../../src/OrbitportVRFCoordinator.sol";
+import {OrbitportFeedAdapter} from "../../src/adapters/OrbitportFeedAdapter.sol";
+import {OrbitportFeedManager} from "../../src/OrbitportFeedManager.sol";
+import {IOrbitportVRFCoordinator} from "../../src/interfaces/IOrbitportVRFCoordinator.sol";
+import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {InvalidAddress, RequestNotFound} from "../src/interfaces/Errors.sol";
+import {InvalidAddress, RequestNotFound} from "../../src/interfaces/Errors.sol";
 import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
 // Import mocks
-import {MockEOFeedVerifier} from "./OrbitportFeedManager.t.sol";
-import {MockPauserRegistry} from "./OrbitportFeedManager.t.sol";
+import {MockEOFeedVerifier} from "../mocks/MockEOFeedVerifier.sol";
+import {MockPauserRegistry} from "../mocks/MockPauserRegistry.sol";
 
-contract OrbitportVRFCoordinatorTest is Test {
+contract OrbitportVRFCoordinatorIntegrationTest is Test {
     OrbitportFeedManager public feedManager;
     OrbitportFeedAdapter public adapter;
     OrbitportVRFCoordinator public vrfCoordinator;
@@ -155,7 +155,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
     /* ============ Access Control Tests ============ */
 
-    function test_RevertWhen_NotRetriever_GetInstantRandomness() public {
+    function test_RevertWhen_CallerIsNotRetriever_GetInstantRandomness() public {
         uint32 numWords = 1;
         
         vm.prank(requester);
@@ -180,7 +180,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertTrue(vrfCoordinator.isFulfilled(requestId));
     }
 
-    function test_GrantRetrieverRole() public {
+    function test_GrantRetrieverRole_GivenAdmin() public {
         address newRetriever = address(0x99);
         
         vm.prank(owner);
@@ -193,7 +193,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         vrfCoordinator.getInstantRandomness(1);
     }
 
-    function test_RevokeRetrieverRole() public {
+    function test_RevokeRetrieverRole_GivenAdmin() public {
         vm.prank(owner);
         vrfCoordinator.revokeRole(RETRIEVER_ROLE, retriever);
         
@@ -211,7 +211,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         vrfCoordinator.getInstantRandomness(1);
     }
 
-    function test_RevertWhen_NotAdmin_GrantRetrieverRole() public {
+    function test_RevertWhen_CallerIsNotAdmin_GrantRole() public {
         address newRetriever = address(0x99);
         
         vm.startPrank(requester);
@@ -228,7 +228,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
     /* ============ Uniqueness Tests ============ */
 
-    function test_GetInstantRandomness_UniqueValues() public {
+    function test_GetInstantRandomness_GivenRetriever_ReturnsUniqueValues() public {
         uint32 numWords = 5;
         
         vm.prank(retriever);
@@ -242,7 +242,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         }
     }
 
-    function test_GetInstantRandomness_MultipleCalls_NoDuplicates() public {
+    function test_GetInstantRandomness_MultipleCalls_ReturnsUniqueValues() public {
         uint32 numWords = 1;
         
         vm.prank(retriever);
@@ -255,7 +255,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertNotEq(words1[0], words2[0]);
     }
     
-    function test_GetInstantRandomness_LargeNumWords() public {
+    function test_GetInstantRandomness_GivenLargeNumWords() public {
         uint32 numWords = 20;
         
         vm.prank(retriever);

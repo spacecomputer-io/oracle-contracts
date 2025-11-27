@@ -1,0 +1,33 @@
+OrbitportFeedManager
+├── getLatestCTRNGFeed
+│   ├── when caller is not retriever
+│   │   └── it should revert
+│   └── when caller is retriever
+│       └── it should return the latest data
+├── getCTRNGFeedBySequence
+│   ├── when caller is not retriever
+│   │   └── it should revert
+│   └── when caller is retriever
+│       └── it should return the data for the sequence
+├── isWhitelistedPublisher
+│   └── it should return whitelist status
+├── isSupportedFeed
+│   └── it should return supported status
+├── getFeedVerifier
+│   └── it should return verifier address
+├── getFeedDeployer
+│   └── it should return deployer address
+├── getLatestSequence
+│   ├── when caller is not retriever
+│   │   └── it should revert
+│   └── when caller is retriever
+│       └── it should return latest sequence
+├── updateFeed
+│   ├── when caller is publisher
+│   │   └── it should update the feed
+│   └── when caller is not publisher
+│       └── it should revert
+└── grantRole
+    └── when caller is admin
+        └── it should grant the role
+

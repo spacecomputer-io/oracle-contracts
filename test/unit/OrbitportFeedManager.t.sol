@@ -2,76 +2,13 @@
 pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {OrbitportFeedManager} from "../src/OrbitportFeedManager.sol";
-import {IOrbitportFeedManager} from "../src/interfaces/IOrbitportFeedManager.sol";
+import {OrbitportFeedManager} from "../../src/OrbitportFeedManager.sol";
+import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
-import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
-import {
-    InvalidAddress,
-    CallerIsNotWhitelisted,
-    FeedNotSupported,
-    CallerIsNotPauser,
-    CallerIsNotUnpauser,
-    CallerIsNotFeedDeployer,
-    SequenceNotFound
-} from "../src/interfaces/Errors.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
-
-/// @title MockEOFeedVerifier
-/// @notice Mock implementation of EOFeedVerifier for testing
-contract MockEOFeedVerifier is IEOFeedVerifier {
-    mapping(bytes32 => bytes) public verifiedData;
-
-    function setVerifiedData(bytes memory input, bytes memory output) external {
-        verifiedData[keccak256(input)] = output;
-    }
-
-    function verify(
-        LeafInput calldata input,
-        VerificationParams calldata
-    ) external view override returns (bytes memory) {
-        bytes memory data = verifiedData[keccak256(input.unhashedLeaf)];
-        require(data.length > 0, "Data not found");
-        return data;
-    }
-
-    function batchVerify(
-        LeafInput[] calldata inputs,
-        VerificationParams calldata
-    ) external view override returns (bytes[] memory) {
-        bytes[] memory results = new bytes[](inputs.length);
-        for (uint256 i = 0; i < inputs.length; i++) {
-            bytes memory data = verifiedData[keccak256(inputs[i].unhashedLeaf)];
-            require(data.length > 0, "Data not found");
-            results[i] = data;
-        }
-        return results;
-    }
-}
-
-/// @title MockPauserRegistry
-/// @notice Mock implementation of PauserRegistry for testing
-contract MockPauserRegistry is IPauserRegistry {
-    mapping(address => bool) public pausers;
-    address public unpauserAddress;
-
-    constructor(address _unpauser) {
-        unpauserAddress = _unpauser;
-    }
-
-    function setPauser(address pauser, bool isPauserAccount) external {
-        pausers[pauser] = isPauserAccount;
-    }
-
-    function isPauser(address account) external view override returns (bool) {
-        return pausers[account];
-    }
-
-    function unpauser() external view override returns (address) {
-        return unpauserAddress;
-    }
-}
+import {MockEOFeedVerifier} from "../mocks/MockEOFeedVerifier.sol";
+import {MockPauserRegistry} from "../mocks/MockPauserRegistry.sol";
 
 contract OrbitportFeedManagerTest is Test {
     OrbitportFeedManager public feedManager;
@@ -148,7 +85,7 @@ contract OrbitportFeedManagerTest is Test {
 
     /* ============ Access Control Tests ============ */
 
-    function test_RevertWhen_NotRetriever_GetLatestCTRNGFeed() public {
+    function test_RevertWhen_CallerIsNotRetriever_GetLatestCTRNGFeed() public {
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -160,7 +97,7 @@ contract OrbitportFeedManagerTest is Test {
         feedManager.getLatestCTRNGFeed(FEED_ID);
     }
 
-    function test_RevertWhen_NotRetriever_GetCTRNGFeedBySequence() public {
+    function test_RevertWhen_CallerIsNotRetriever_GetCTRNGFeedBySequence() public {
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -172,55 +109,7 @@ contract OrbitportFeedManagerTest is Test {
         feedManager.getCTRNGFeedBySequence(FEED_ID, SEQUENCE);
     }
 
-    function test_RevertWhen_NotRetriever_IsWhitelistedPublisher() public {
-        vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
-        feedManager.isWhitelistedPublisher(publisher);
-    }
-
-    function test_RevertWhen_NotRetriever_IsSupportedFeed() public {
-        vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
-        feedManager.isSupportedFeed(FEED_ID);
-    }
-    
-    function test_RevertWhen_NotRetriever_GetFeedVerifier() public {
-        vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
-        feedManager.getFeedVerifier();
-    }
-    
-    function test_RevertWhen_NotRetriever_GetFeedDeployer() public {
-        vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
-        feedManager.getFeedDeployer();
-    }
-    
-    function test_RevertWhen_NotRetriever_GetLatestSequence() public {
+    function test_RevertWhen_CallerIsNotRetriever_GetLatestSequence() public {
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -232,7 +121,7 @@ contract OrbitportFeedManagerTest is Test {
         feedManager.getLatestSequence(FEED_ID);
     }
 
-    function test_GrantRetrieverRole() public {
+    function test_GrantRole_Retriever() public {
         address newRetriever = address(0x99);
         
         vm.prank(owner);
@@ -245,10 +134,11 @@ contract OrbitportFeedManagerTest is Test {
         feedManager.isSupportedFeed(FEED_ID);
     }
 
-    /* ============ Functionality Tests (with role) ============ */
+    /* ============ Functionality Tests ============ */
 
-    function test_Initialize() public {
-        vm.startPrank(retriever);
+    function test_Initialize_GivenAdmin() public {
+        // No longer needs retriever role for these view functions
+        vm.startPrank(user);
         assertEq(address(feedManager.getFeedVerifier()), address(verifier));
         assertEq(feedManager.getFeedDeployer(), feedDeployer);
         assertTrue(feedManager.isSupportedFeed(FEED_ID));
@@ -258,7 +148,7 @@ contract OrbitportFeedManagerTest is Test {
         assertEq(feedManager.owner(), owner);
     }
 
-    function test_UpdateFeed() public {
+    function test_UpdateFeed_GivenPublisher() public {
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
@@ -291,7 +181,7 @@ contract OrbitportFeedManagerTest is Test {
         assertEq(data.ctrng[0], ctrngValues[0]);
     }
 
-    function test_GetCTRNGFeedBySequence() public {
+    function test_GetCTRNGFeedBySequence_GivenExistingSequence() public {
         // First update feed
         bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);

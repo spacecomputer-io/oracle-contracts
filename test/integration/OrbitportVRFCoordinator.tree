@@ -1,0 +1,12 @@
+OrbitportVRFCoordinator Integration
+├── System Setup
+│   └── it should deploy all contracts and link them
+├── Randomness Request
+│   ├── when request is made
+│   │   └── it should emit event
+├── Instant Randomness
+│   ├── when caller is retriever
+│   │   └── it should get data from Adapter -> Manager
+│   └── when caller is not retriever
+│   │   └── it should revert
+

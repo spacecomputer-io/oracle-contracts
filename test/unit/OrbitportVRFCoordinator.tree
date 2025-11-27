@@ -1,0 +1,16 @@
+OrbitportVRFCoordinator
+├── requestRandomWords
+│   ├── it should create a request
+│   └── it should emit RandomWordsRequested event
+├── getInstantRandomness
+│   ├── when caller is not retriever
+│   │   └── it should revert
+│   └── when caller is retriever
+│       └── it should return random words from adapter
+├── grantRole
+    └── when caller is admin
+        └── it should grant the role
+├── revokeRole
+    └── when caller is admin
+        └── it should revoke the role
+

@@ -241,26 +241,26 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Check if a publisher is whitelisted
     /// @param publisher Publisher address
     /// @return bool True if whitelisted
-    function isWhitelistedPublisher(address publisher) external onlyRole(RETRIEVER_ROLE) returns (bool) {
+    function isWhitelistedPublisher(address publisher) external view returns (bool) {
         return _whitelistedPublishers[publisher];
     }
 
     /// @notice Check if a feed ID is supported
     /// @param feedId Feed ID
     /// @return bool True if supported
-    function isSupportedFeed(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (bool) {
+    function isSupportedFeed(uint256 feedId) external view returns (bool) {
         return _supportedFeedIds[feedId];
     }
 
     /// @notice Get the feed deployer address
     /// @return address Feed deployer address
-    function getFeedDeployer() external onlyRole(RETRIEVER_ROLE) returns (address) {
+    function getFeedDeployer() external view returns (address) {
         return _feedDeployer;
     }
 
     /// @notice Get the feed verifier address
     /// @return IEOFeedVerifier Feed verifier contract
-    function getFeedVerifier() external onlyRole(RETRIEVER_ROLE) returns (IEOFeedVerifier) {
+    function getFeedVerifier() external view returns (IEOFeedVerifier) {
         return _feedVerifier;
     }
 
