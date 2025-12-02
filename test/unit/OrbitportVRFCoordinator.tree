@@ -6,11 +6,26 @@ OrbitportVRFCoordinator
 │   ├── when caller is not retriever
 │   │   └── it should revert
 │   └── when caller is retriever
-│       └── it should return random words from adapter
+│       ├── it should return random words from adapter
+│       ├── it should return unique values
+│       ├── multiple calls should return unique values
+│       └── it should handle large numWords
+├── fulfillRandomWords
+│   ├── when caller is fulfiller
+│   │   └── it should fulfill the request
+│   ├── when caller is not fulfiller
+│   │   └── it should revert
+│   ├── when request not found
+│   │   └── it should revert
+│   └── when already fulfilled
+│       └── it should revert
 ├── grantRole
+│   ├── when caller is admin
+│   │   ├── it should grant RETRIEVER_ROLE
+│   │   └── it should grant FULFILLER_ROLE
+│   └── when caller is not admin
+│       └── it should revert
+└── revokeRole
     └── when caller is admin
-        └── it should grant the role
-├── revokeRole
-    └── when caller is admin
-        └── it should revoke the role
-
+        ├── it should revoke RETRIEVER_ROLE
+        └── it should revoke FULFILLER_ROLE
