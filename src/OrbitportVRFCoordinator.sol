@@ -13,6 +13,9 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     /// @dev Role allowed to request instant randomness
     bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
 
+    /// @dev Role allowed to fulfill random words requests
+    bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
+
     /// @dev Reference to the CTRNG feed adapter
     IOrbitportFeedAdapter internal _feedAdapter;
 
@@ -69,9 +72,10 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     }
 
     /// @notice Fulfill random words request
+    /// @dev Only addresses with FULFILLER_ROLE can fulfill requests
     /// @param requestId Request ID
     /// @param randomWords Array of random words
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external override {
+    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external override onlyRole(FULFILLER_ROLE) {
         if (_requests[requestId].requester == address(0)) revert RequestNotFound(requestId);
         if (_fulfilled[requestId]) revert RequestNotFound(requestId); // Already fulfilled
 

@@ -6,6 +6,7 @@ import {OrbitportVRFCoordinator} from "../../src/OrbitportVRFCoordinator.sol";
 import {IOrbitportVRFCoordinator} from "../../src/interfaces/IOrbitportVRFCoordinator.sol";
 import {MockOrbitportFeedAdapter} from "../mocks/MockOrbitportFeedAdapter.sol";
 import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import {RequestNotFound} from "../../src/interfaces/Errors.sol";
 
 contract OrbitportVRFCoordinatorTest is Test {
     MockOrbitportFeedAdapter public mockAdapter;
@@ -13,14 +14,17 @@ contract OrbitportVRFCoordinatorTest is Test {
     address public owner;
     address public requester;
     address public retriever;
+    address public fulfiller;
 
     uint256[] public ctrngValues;
     bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
+    bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
 
     function setUp() public {
         owner = address(0x1);
         requester = address(0x7);
         retriever = address(0x8);
+        fulfiller = address(0x9);
 
         mockAdapter = new MockOrbitportFeedAdapter();
         
@@ -30,6 +34,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         // Grant RETRIEVER_ROLE to retriever
         vm.prank(owner);
         vrfCoordinator.grantRole(RETRIEVER_ROLE, retriever);
+        
+        // Grant FULFILLER_ROLE to fulfiller
+        vm.prank(owner);
+        vrfCoordinator.grantRole(FULFILLER_ROLE, fulfiller);
         
         // Setup mock data
         ctrngValues = new uint256[](5);
@@ -184,5 +192,171 @@ contract OrbitportVRFCoordinatorTest is Test {
                 assertNotEq(randomWords[i], randomWords[j]);
             }
         }
+    }
+
+    /* ============ FulfillRandomWords Tests ============ */
+
+    function test_FulfillRandomWords_GivenFulfiller() public {
+        bytes32 keyHash = keccak256("test");
+        uint64 subId = 1;
+        uint16 requestConfirmations = 3;
+        uint32 callbackGasLimit = 100000;
+        uint32 numWords = 2;
+
+        // Request random words
+        vm.prank(requester);
+        uint256 requestId = vrfCoordinator.requestRandomWords(
+            keyHash,
+            subId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+
+        assertFalse(vrfCoordinator.isFulfilled(requestId));
+
+        // Fulfill the request
+        uint256[] memory randomWords = new uint256[](numWords);
+        randomWords[0] = 12345;
+        randomWords[1] = 67890;
+
+        vm.prank(fulfiller);
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+
+        assertTrue(vrfCoordinator.isFulfilled(requestId));
+        uint256[] memory fulfilledWords = vrfCoordinator.getFulfilledRandomWords(requestId);
+        assertEq(fulfilledWords.length, numWords);
+        assertEq(fulfilledWords[0], randomWords[0]);
+        assertEq(fulfilledWords[1], randomWords[1]);
+    }
+
+    function test_RevertWhen_CallerIsNotFulfiller_FulfillRandomWords() public {
+        bytes32 keyHash = keccak256("test");
+        uint64 subId = 1;
+        uint16 requestConfirmations = 3;
+        uint32 callbackGasLimit = 100000;
+        uint32 numWords = 2;
+
+        // Request random words
+        vm.prank(requester);
+        uint256 requestId = vrfCoordinator.requestRandomWords(
+            keyHash,
+            subId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+
+        // Try to fulfill without FULFILLER_ROLE
+        uint256[] memory randomWords = new uint256[](numWords);
+        randomWords[0] = 12345;
+        randomWords[1] = 67890;
+
+        vm.prank(requester);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                requester,
+                FULFILLER_ROLE
+            )
+        );
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+    }
+
+    function test_RevertWhen_RequestNotFound_FulfillRandomWords() public {
+        uint256[] memory randomWords = new uint256[](2);
+        randomWords[0] = 12345;
+        randomWords[1] = 67890;
+
+        vm.prank(fulfiller);
+        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
+        vrfCoordinator.fulfillRandomWords(999, randomWords);
+    }
+
+    function test_RevertWhen_AlreadyFulfilled_FulfillRandomWords() public {
+        bytes32 keyHash = keccak256("test");
+        uint64 subId = 1;
+        uint16 requestConfirmations = 3;
+        uint32 callbackGasLimit = 100000;
+        uint32 numWords = 2;
+
+        // Request random words
+        vm.prank(requester);
+        uint256 requestId = vrfCoordinator.requestRandomWords(
+            keyHash,
+            subId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+
+        // Fulfill the request
+        uint256[] memory randomWords = new uint256[](numWords);
+        randomWords[0] = 12345;
+        randomWords[1] = 67890;
+
+        vm.prank(fulfiller);
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+
+        // Try to fulfill again
+        vm.prank(fulfiller);
+        vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, requestId));
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+    }
+
+    function test_GrantFulfillerRole_GivenAdmin() public {
+        address newFulfiller = address(0x99);
+        
+        vm.prank(owner);
+        vrfCoordinator.grantRole(FULFILLER_ROLE, newFulfiller);
+        
+        assertTrue(vrfCoordinator.hasRole(FULFILLER_ROLE, newFulfiller));
+        
+        // Should be able to fulfill now
+        vm.prank(requester);
+        uint256 requestId = vrfCoordinator.requestRandomWords(
+            keccak256("test"),
+            1,
+            3,
+            100000,
+            1
+        );
+
+        uint256[] memory randomWords = new uint256[](1);
+        randomWords[0] = 12345;
+
+        vm.prank(newFulfiller);
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        assertTrue(vrfCoordinator.isFulfilled(requestId));
+    }
+
+    function test_RevokeFulfillerRole_GivenAdmin() public {
+        vm.prank(owner);
+        vrfCoordinator.revokeRole(FULFILLER_ROLE, fulfiller);
+        
+        assertFalse(vrfCoordinator.hasRole(FULFILLER_ROLE, fulfiller));
+        
+        // Should fail now
+        vm.prank(requester);
+        uint256 requestId = vrfCoordinator.requestRandomWords(
+            keccak256("test"),
+            1,
+            3,
+            100000,
+            1
+        );
+
+        uint256[] memory randomWords = new uint256[](1);
+        randomWords[0] = 12345;
+
+        vm.prank(fulfiller);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                fulfiller,
+                FULFILLER_ROLE
+            )
+        );
+        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
     }
 }
