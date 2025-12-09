@@ -59,7 +59,7 @@ interface IOrbitportFeedManager {
     /// @notice Get the latest CTRNG feed data for a feed ID
     /// @param feedId Feed ID
     /// @return CTRNGData struct containing sequence, timestamp, ctrng array, and blockNumber
-    function getLatestCTRNGFeed(uint256 feedId) external returns (CTRNGData memory);
+    function getLatestCTRNGFeed(uint256 feedId) external view returns (CTRNGData memory);
 
     /// @notice Get CTRNG feed data by feed ID and sequence
     /// @param feedId Feed ID
@@ -68,7 +68,7 @@ interface IOrbitportFeedManager {
     function getCTRNGFeedBySequence(
         uint256 feedId,
         uint256 sequence
-    ) external returns (CTRNGData memory);
+    ) external view returns (CTRNGData memory);
 
     /// @notice Check if a publisher is whitelisted
     /// @param publisher Publisher address

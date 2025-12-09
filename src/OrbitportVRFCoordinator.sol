@@ -108,7 +108,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
     }
 
     /// @notice Fulfill random words request
-    /// @dev Only addresses with FULFILLER_ROLE can fulfill requests
+    /// @dev Only authorized fulfillers can fulfill requests
     /// @param requestId Request ID
     /// @param randomWords Array of random words
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external override onlyAuthorizedFulfiller {

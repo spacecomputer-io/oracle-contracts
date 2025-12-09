@@ -233,7 +233,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Get the latest CTRNG feed data for a feed ID
     /// @param feedId Feed ID
     /// @return CTRNGData struct
-    function getLatestCTRNGFeed(uint256 feedId) external onlyAuthorizedCaller returns (CTRNGData memory) {
+    function getLatestCTRNGFeed(uint256 feedId) external view onlyAuthorizedCaller returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         uint256 latestSequence = _latestSequences[feedId];
         if (latestSequence == 0) revert SequenceNotFound(latestSequence);
@@ -247,7 +247,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     function getCTRNGFeedBySequence(
         uint256 feedId,
         uint256 sequence
-    ) external onlyAuthorizedCaller returns (CTRNGData memory) {
+    ) external view onlyAuthorizedCaller returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         CTRNGData memory data = _ctrngFeeds[feedId][sequence];
         if (data.sequence == 0 && sequence != 0) revert SequenceNotFound(sequence);
@@ -283,7 +283,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Get the latest sequence for a feed ID
     /// @param feedId Feed ID
     /// @return uint256 Latest sequence number
-    function getLatestSequence(uint256 feedId) external onlyAuthorizedCaller returns (uint256) {
+    function getLatestSequence(uint256 feedId) external view onlyAuthorizedCaller returns (uint256) {
         return _latestSequences[feedId];
     }
 

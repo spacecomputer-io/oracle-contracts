@@ -1,31 +1,30 @@
 OrbitportVRFCoordinator
 ├── requestRandomWords
-│   ├── it should create a request
-│   └── it should emit RandomWordsRequested event
+│   └── it should create a request and return request ID
 ├── getInstantRandomness
 │   ├── when caller is not retriever
-│   │   └── it should revert
+│   │   └── it should revert with CallerIsNotRetriever
 │   └── when caller is retriever
-│       ├── it should return random words from adapter
-│       ├── it should return unique values
+│       ├── it should return random words from beacon manager
+│       ├── it should return unique values within batch
 │       ├── multiple calls should return unique values
 │       └── it should handle large numWords
 ├── fulfillRandomWords
 │   ├── when caller is fulfiller
 │   │   └── it should fulfill the request
 │   ├── when caller is not fulfiller
-│   │   └── it should revert
+│   │   └── it should revert with CallerIsNotFulfiller
 │   ├── when request not found
-│   │   └── it should revert
+│   │   └── it should revert with RequestNotFound
 │   └── when already fulfilled
+│       └── it should revert with RequestNotFound
+├── setAuthorizedRetrievers
+│   ├── when caller is owner
+│   │   ├── it should authorize retriever
+│   │   └── it should deauthorize retriever
+│   └── when caller is not owner
 │       └── it should revert
-├── grantRole
-│   ├── when caller is admin
-│   │   ├── it should grant RETRIEVER_ROLE
-│   │   └── it should grant FULFILLER_ROLE
-│   └── when caller is not admin
-│       └── it should revert
-└── revokeRole
-    └── when caller is admin
-        ├── it should revoke RETRIEVER_ROLE
-        └── it should revoke FULFILLER_ROLE
+└── setAuthorizedFulfillers
+    └── when caller is owner
+        ├── it should authorize fulfiller
+        └── it should deauthorize fulfiller

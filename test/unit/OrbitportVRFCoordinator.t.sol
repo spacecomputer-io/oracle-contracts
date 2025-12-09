@@ -4,21 +4,20 @@ pragma solidity 0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {OrbitportVRFCoordinator} from "../../src/OrbitportVRFCoordinator.sol";
 import {IOrbitportVRFCoordinator} from "../../src/interfaces/IOrbitportVRFCoordinator.sol";
-import {MockOrbitportFeedAdapter} from "../mocks/MockOrbitportFeedAdapter.sol";
-import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
-import {RequestNotFound} from "../../src/interfaces/Errors.sol";
+import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
+import {MockOrbitportFeedManager} from "../mocks/MockOrbitportFeedManager.sol";
+import {RequestNotFound, CallerIsNotRetriever, CallerIsNotFulfiller} from "../../src/interfaces/Errors.sol";
 
 contract OrbitportVRFCoordinatorTest is Test {
-    MockOrbitportFeedAdapter public mockAdapter;
+    MockOrbitportFeedManager public mockFeedManager;
     OrbitportVRFCoordinator public vrfCoordinator;
     address public owner;
     address public requester;
     address public retriever;
     address public fulfiller;
 
+    uint256 public constant BEACON_ID = 1;
     uint256[] public ctrngValues;
-    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
-    bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
 
     function setUp() public {
         owner = address(0x1);
@@ -26,18 +25,24 @@ contract OrbitportVRFCoordinatorTest is Test {
         retriever = address(0x8);
         fulfiller = address(0x9);
 
-        mockAdapter = new MockOrbitportFeedAdapter();
+        mockFeedManager = new MockOrbitportFeedManager();
         
         vm.prank(owner);
-        vrfCoordinator = new OrbitportVRFCoordinator(address(mockAdapter));
+        vrfCoordinator = new OrbitportVRFCoordinator(address(mockFeedManager), BEACON_ID);
         
-        // Grant RETRIEVER_ROLE to retriever
+        // Authorize retrievers
+        address[] memory retrievers = new address[](1);
+        retrievers[0] = retriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
         vm.prank(owner);
-        vrfCoordinator.grantRole(RETRIEVER_ROLE, retriever);
+        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
         
-        // Grant FULFILLER_ROLE to fulfiller
+        // Authorize fulfillers
+        address[] memory fulfillers = new address[](1);
+        fulfillers[0] = fulfiller;
         vm.prank(owner);
-        vrfCoordinator.grantRole(FULFILLER_ROLE, fulfiller);
+        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
         
         // Setup mock data
         ctrngValues = new uint256[](5);
@@ -47,7 +52,13 @@ contract OrbitportVRFCoordinatorTest is Test {
         ctrngValues[3] = 40;
         ctrngValues[4] = 50;
         
-        mockAdapter.setLatestCTRNGData(ctrngValues);
+        IOrbitportFeedManager.CTRNGData memory data = IOrbitportFeedManager.CTRNGData({
+            sequence: 1,
+            timestamp: block.timestamp,
+            ctrng: ctrngValues,
+            blockNumber: block.number
+        });
+        mockFeedManager.setLatestCTRNGFeed(BEACON_ID, data);
     }
 
     function test_RequestRandomWords() public {
@@ -82,13 +93,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 1;
         
         vm.prank(requester);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                requester,
-                RETRIEVER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, requester));
         vrfCoordinator.getInstantRandomness(numWords);
     }
 
@@ -103,50 +108,52 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertTrue(vrfCoordinator.isFulfilled(requestId));
     }
 
-    function test_GrantRole_GivenAdmin() public {
+    function test_AuthorizeRetriever_GivenOwner() public {
         address newRetriever = address(0x99);
         
-        vm.prank(owner);
-        vrfCoordinator.grantRole(RETRIEVER_ROLE, newRetriever);
+        address[] memory retrievers = new address[](1);
+        retrievers[0] = newRetriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
         
-        assertTrue(vrfCoordinator.hasRole(RETRIEVER_ROLE, newRetriever));
+        vm.prank(owner);
+        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        
+        assertTrue(vrfCoordinator.isAuthorizedRetriever(newRetriever));
         
         // Should be able to call now
         vm.prank(newRetriever);
         vrfCoordinator.getInstantRandomness(1);
     }
 
-    function test_RevokeRole_GivenAdmin() public {
-        vm.prank(owner);
-        vrfCoordinator.revokeRole(RETRIEVER_ROLE, retriever);
+    function test_DeauthorizeRetriever_GivenOwner() public {
+        address[] memory retrievers = new address[](1);
+        retrievers[0] = retriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = false;
         
-        assertFalse(vrfCoordinator.hasRole(RETRIEVER_ROLE, retriever));
+        vm.prank(owner);
+        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        
+        assertFalse(vrfCoordinator.isAuthorizedRetriever(retriever));
         
         // Should fail now
         vm.prank(retriever);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                retriever,
-                RETRIEVER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, retriever));
         vrfCoordinator.getInstantRandomness(1);
     }
 
-    function test_RevertWhen_CallerIsNotAdmin_GrantRole() public {
+    function test_RevertWhen_CallerIsNotOwner_AuthorizeRetriever() public {
         address newRetriever = address(0x99);
         
-        vm.startPrank(requester);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                requester,
-                vrfCoordinator.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        vrfCoordinator.grantRole(RETRIEVER_ROLE, newRetriever);
-        vm.stopPrank();
+        address[] memory retrievers = new address[](1);
+        retrievers[0] = newRetriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
+        
+        vm.prank(requester);
+        vm.expectRevert();
+        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
     }
 
     /* ============ Uniqueness Tests ============ */
@@ -247,19 +254,13 @@ contract OrbitportVRFCoordinatorTest is Test {
             numWords
         );
 
-        // Try to fulfill without FULFILLER_ROLE
+        // Try to fulfill without being authorized
         uint256[] memory randomWords = new uint256[](numWords);
         randomWords[0] = 12345;
         randomWords[1] = 67890;
 
         vm.prank(requester);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                requester,
-                FULFILLER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotFulfiller.selector, requester));
         vrfCoordinator.fulfillRandomWords(requestId, randomWords);
     }
 
@@ -304,13 +305,18 @@ contract OrbitportVRFCoordinatorTest is Test {
         vrfCoordinator.fulfillRandomWords(requestId, randomWords);
     }
 
-    function test_GrantFulfillerRole_GivenAdmin() public {
+    function test_AuthorizeFulfiller_GivenOwner() public {
         address newFulfiller = address(0x99);
         
-        vm.prank(owner);
-        vrfCoordinator.grantRole(FULFILLER_ROLE, newFulfiller);
+        address[] memory fulfillers = new address[](1);
+        fulfillers[0] = newFulfiller;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
         
-        assertTrue(vrfCoordinator.hasRole(FULFILLER_ROLE, newFulfiller));
+        vm.prank(owner);
+        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
+        
+        assertTrue(vrfCoordinator.isAuthorizedFulfiller(newFulfiller));
         
         // Should be able to fulfill now
         vm.prank(requester);
@@ -330,11 +336,16 @@ contract OrbitportVRFCoordinatorTest is Test {
         assertTrue(vrfCoordinator.isFulfilled(requestId));
     }
 
-    function test_RevokeFulfillerRole_GivenAdmin() public {
-        vm.prank(owner);
-        vrfCoordinator.revokeRole(FULFILLER_ROLE, fulfiller);
+    function test_DeauthorizeFulfiller_GivenOwner() public {
+        address[] memory fulfillers = new address[](1);
+        fulfillers[0] = fulfiller;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = false;
         
-        assertFalse(vrfCoordinator.hasRole(FULFILLER_ROLE, fulfiller));
+        vm.prank(owner);
+        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
+        
+        assertFalse(vrfCoordinator.isAuthorizedFulfiller(fulfiller));
         
         // Should fail now
         vm.prank(requester);
@@ -350,13 +361,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         randomWords[0] = 12345;
 
         vm.prank(fulfiller);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                fulfiller,
-                FULFILLER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotFulfiller.selector, fulfiller));
         vrfCoordinator.fulfillRandomWords(requestId, randomWords);
     }
 }

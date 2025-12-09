@@ -6,7 +6,7 @@ import {OrbitportFeedManager} from "../../src/OrbitportFeedManager.sol";
 import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IAccessControl} from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import {CallerIsNotRetriever} from "../../src/interfaces/Errors.sol";
 import {MockEOFeedVerifier} from "../mocks/MockEOFeedVerifier.sol";
 import {MockPauserRegistry} from "../mocks/MockPauserRegistry.sol";
 
@@ -26,7 +26,6 @@ contract OrbitportFeedManagerTest is Test {
     uint256 public constant SEQUENCE = 12345;
     uint256 public constant TIMESTAMP = 1704067200;
     uint256[] public ctrngValues;
-    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
 
     function setUp() public {
         owner = address(0x1);
@@ -77,61 +76,95 @@ contract OrbitportFeedManagerTest is Test {
         supported[0] = true;
         feedManager.setSupportedFeeds(feedIds, supported);
         
-        // Grant RETRIEVER_ROLE to retriever
-        feedManager.grantRole(RETRIEVER_ROLE, retriever);
+        // Authorize retriever
+        address[] memory authorizedCallers = new address[](1);
+        authorizedCallers[0] = retriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
+        feedManager.setAuthorizedCallers(authorizedCallers, isAuthorized);
 
         vm.stopPrank();
     }
 
     /* ============ Access Control Tests ============ */
 
-    function test_RevertWhen_CallerIsNotRetriever_GetLatestCTRNGFeed() public {
+    function test_RevertWhen_CallerIsNotAuthorized_GetLatestCTRNGFeed() public {
         vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, user));
         feedManager.getLatestCTRNGFeed(FEED_ID);
     }
 
-    function test_RevertWhen_CallerIsNotRetriever_GetCTRNGFeedBySequence() public {
+    function test_RevertWhen_CallerIsNotAuthorized_GetCTRNGFeedBySequence() public {
         vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, user));
         feedManager.getCTRNGFeedBySequence(FEED_ID, SEQUENCE);
     }
 
-    function test_RevertWhen_CallerIsNotRetriever_GetLatestSequence() public {
+    function test_RevertWhen_CallerIsNotAuthorized_GetLatestSequence() public {
         vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user,
-                RETRIEVER_ROLE
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, user));
         feedManager.getLatestSequence(FEED_ID);
     }
 
-    function test_GrantRole_Retriever() public {
+    function test_AuthorizeCaller_GivenOwner() public {
         address newRetriever = address(0x99);
         
-        vm.prank(owner);
-        feedManager.grantRole(RETRIEVER_ROLE, newRetriever);
+        // First, publish some data so we can test retrieval
+        bytes memory inputData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
+        bytes memory verifiedData = abi.encode(FEED_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         
-        assertTrue(feedManager.hasRole(RETRIEVER_ROLE, newRetriever));
+        IEOFeedVerifier.LeafInput memory input = IEOFeedVerifier.LeafInput({
+            leafIndex: 0,
+            unhashedLeaf: inputData,
+            proof: new bytes32[](0)
+        });
+        IEOFeedVerifier.VerificationParams memory vParams = IEOFeedVerifier.VerificationParams({
+            blockNumber: uint64(block.number),
+            chainId: uint32(1),
+            aggregator: address(1),
+            eventRoot: bytes32(0),
+            blockHash: bytes32(0),
+            signature: [uint256(0), uint256(0)],
+            apkG2: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nonSignersBitmap: bytes("0")
+        });
+
+        verifier.setVerifiedData(inputData, verifiedData);
+        vm.prank(publisher);
+        feedManager.updateFeed(input, vParams);
+        
+        // Now authorize the new retriever
+        address[] memory authorizedCallers = new address[](1);
+        authorizedCallers[0] = newRetriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = true;
+        
+        vm.prank(owner);
+        feedManager.setAuthorizedCallers(authorizedCallers, isAuthorized);
+        
+        assertTrue(feedManager.isAuthorizedCaller(newRetriever));
         
         // Should be able to call now
         vm.prank(newRetriever);
-        feedManager.isSupportedFeed(FEED_ID);
+        IOrbitportFeedManager.CTRNGData memory data = feedManager.getLatestCTRNGFeed(FEED_ID);
+        assertEq(data.sequence, SEQUENCE);
+    }
+
+    function test_DeauthorizeCaller_GivenOwner() public {
+        address[] memory authorizedCallers = new address[](1);
+        authorizedCallers[0] = retriever;
+        bool[] memory isAuthorized = new bool[](1);
+        isAuthorized[0] = false;
+        
+        vm.prank(owner);
+        feedManager.setAuthorizedCallers(authorizedCallers, isAuthorized);
+        
+        assertFalse(feedManager.isAuthorizedCaller(retriever));
+        
+        // Should fail now
+        vm.prank(retriever);
+        vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, retriever));
+        feedManager.getLatestCTRNGFeed(FEED_ID);
     }
 
     /* ============ Functionality Tests ============ */

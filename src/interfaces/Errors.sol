@@ -10,6 +10,9 @@ error CallerIsNotWhitelisted(address caller);
 /// @notice Thrown when leaf inputs are missing
 error MissingLeafInputs();
 
+/// @notice Thrown when feed ID is not supported
+error FeedNotSupported(uint256 feedId);
+
 /// @notice Thrown when beacon ID is not supported
 error BeaconNotSupported(uint256 beaconId);
 
