@@ -37,6 +37,9 @@ interface IOrbitportFeedManager {
     /// @notice Event emitted when pauser registry is set
     event PauserRegistrySet(address pauserRegistry);
 
+    /// @notice Event emitted when authorized caller is updated
+    event AuthorizedCallerUpdated(address indexed caller, bool isAuthorized);
+
     /// @notice Update a single CTRNG feed
     /// @param input Leaf input for verification
     /// @param vParams Verification parameters

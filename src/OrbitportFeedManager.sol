@@ -3,7 +3,6 @@ pragma solidity 0.8.25;
 
 import { OwnableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IPauserRegistry } from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import { IEOFeedVerifier } from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
@@ -16,7 +15,8 @@ import {
     CallerIsNotPauser,
     CallerIsNotUnpauser,
     CallerIsNotFeedDeployer,
-    SequenceNotFound
+    SequenceNotFound,
+    CallerIsNotRetriever
 } from "./interfaces/Errors.sol";
 
 /// @title OrbitportFeedManager
@@ -24,10 +24,7 @@ import {
 /// These updates are verified using the logic in the EOFeedVerifier. Upon successful verification, the CTRNG data
 /// is stored in the OrbitportFeedManager and made available for other smart contracts to read. Only supported feed IDs
 /// can be published to the feed manager.
-contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
-    /// @dev Role allowed to access feed data and view functions
-    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
-
+contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, PausableUpgradeable {
     /// @dev Map of feed id to CTRNG data by sequence (feed id => sequence => CTRNGData)
     mapping(uint256 => mapping(uint256 => CTRNGData)) internal _ctrngFeeds;
 
@@ -39,6 +36,9 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
 
     /// @dev Map of supported feeds, (feed id => is supported)
     mapping(uint256 => bool) internal _supportedFeedIds;
+
+    /// @dev Map of authorized callers (caller => is authorized)
+    mapping(address => bool) internal _authorizedCallers;
 
     /// @dev feed verifier contract
     IEOFeedVerifier internal _feedVerifier;
@@ -79,6 +79,12 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
         _;
     }
 
+    /// @dev Allows only authorized callers to call the function
+    modifier onlyAuthorizedCaller() {
+        if (!_authorizedCallers[msg.sender]) revert CallerIsNotRetriever(msg.sender);
+        _;
+    }
+
     /* ============ Constructor ============ */
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -108,8 +114,6 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     {
         __Ownable_init(owner);
         __Pausable_init();
-        __AccessControl_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _feedVerifier = IEOFeedVerifier(feedVerifier);
         _pauserRegistry = IPauserRegistry(pauserRegistry);
         _feedDeployer = feedDeployer;
@@ -160,6 +164,18 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
             if (publishers[i] == address(0)) revert InvalidAddress();
             _whitelistedPublishers[publishers[i]] = isWhitelisted[i];
             emit PublisherWhitelisted(publishers[i], isWhitelisted[i]);
+        }
+    }
+
+    /// @notice Authorize or deauthorize callers
+    /// @param callers Array of caller addresses
+    /// @param isAuthorized Array of booleans indicating whether the caller is authorized
+    function setAuthorizedCallers(address[] calldata callers, bool[] calldata isAuthorized) external onlyOwner {
+        if (callers.length != isAuthorized.length) revert InvalidInput();
+        for (uint256 i = 0; i < callers.length; i++) {
+            if (callers[i] == address(0)) revert InvalidAddress();
+            _authorizedCallers[callers[i]] = isAuthorized[i];
+            emit AuthorizedCallerUpdated(callers[i], isAuthorized[i]);
         }
     }
 
@@ -217,7 +233,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Get the latest CTRNG feed data for a feed ID
     /// @param feedId Feed ID
     /// @return CTRNGData struct
-    function getLatestCTRNGFeed(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (CTRNGData memory) {
+    function getLatestCTRNGFeed(uint256 feedId) external onlyAuthorizedCaller returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         uint256 latestSequence = _latestSequences[feedId];
         if (latestSequence == 0) revert SequenceNotFound(latestSequence);
@@ -231,7 +247,7 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     function getCTRNGFeedBySequence(
         uint256 feedId,
         uint256 sequence
-    ) external onlyRole(RETRIEVER_ROLE) returns (CTRNGData memory) {
+    ) external onlyAuthorizedCaller returns (CTRNGData memory) {
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
         CTRNGData memory data = _ctrngFeeds[feedId][sequence];
         if (data.sequence == 0 && sequence != 0) revert SequenceNotFound(sequence);
@@ -267,8 +283,15 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
     /// @notice Get the latest sequence for a feed ID
     /// @param feedId Feed ID
     /// @return uint256 Latest sequence number
-    function getLatestSequence(uint256 feedId) external onlyRole(RETRIEVER_ROLE) returns (uint256) {
+    function getLatestSequence(uint256 feedId) external onlyAuthorizedCaller returns (uint256) {
         return _latestSequences[feedId];
+    }
+
+    /// @notice Check if a caller is authorized
+    /// @param caller Caller address
+    /// @return bool True if authorized
+    function isAuthorizedCaller(address caller) external view returns (bool) {
+        return _authorizedCallers[caller];
     }
 
     /* ============ Internal Functions ============ */
