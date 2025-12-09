@@ -2,22 +2,28 @@
 pragma solidity 0.8.25;
 
 import { IOrbitportVRFCoordinator } from "./interfaces/IOrbitportVRFCoordinator.sol";
-import { IOrbitportFeedAdapter } from "./interfaces/IOrbitportFeedAdapter.sol";
-import { InvalidAddress, RequestNotFound } from "./interfaces/Errors.sol";
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
+import { InvalidAddress, RequestNotFound, CallerIsNotRetriever, CallerIsNotFulfiller, StaleCTRNGData, InvalidRandomWordsLength, InvalidInput } from "./interfaces/Errors.sol";
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 /// @title OrbitportVRFCoordinator
-/// @notice Simplified VRF Coordinator contract that uses CTRNG feed data for randomness
-/// @dev Maintains compatibility with Chainlink VRF interface while using CTRNG feed adapter
-contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
-    /// @dev Role allowed to request instant randomness
-    bytes32 public constant RETRIEVER_ROLE = keccak256("RETRIEVER_ROLE");
+/// @notice Simplified VRF Coordinator contract that uses CTRNG beacon data for randomness
+/// @dev Maintains compatibility with Chainlink VRF interface while using CTRNG beacon manager directly
+contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
+    /// @dev Map of authorized retrievers (retriever => is authorized)
+    mapping(address => bool) internal _authorizedRetrievers;
 
-    /// @dev Role allowed to fulfill random words requests
-    bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
+    /// @dev Map of authorized fulfillers (fulfiller => is authorized)
+    mapping(address => bool) internal _authorizedFulfillers;
 
-    /// @dev Reference to the CTRNG feed adapter
-    IOrbitportFeedAdapter internal _feedAdapter;
+    /// @dev Reference to the CTRNG beacon manager
+    IOrbitportFeedManager internal _beaconManager;
+
+    /// @dev Beacon ID to read from
+    uint256 internal _beaconId;
+
+    /// @dev Maximum age of CTRNG data in seconds (default: 3600 = 1 hour)
+    uint256 internal _maxCTRNGAge = 3600;
 
     /// @dev Request counter for generating unique request IDs
     uint256 internal _requestCounter;
@@ -34,12 +40,42 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     /// @dev Map of consumed randomness values to ensure global uniqueness
     mapping(uint256 => bool) internal _consumedRandomness;
 
+    /// @notice Event emitted when authorized retriever is updated
+    event AuthorizedRetrieverUpdated(address indexed retriever, bool isAuthorized);
+
+    /// @notice Event emitted when authorized fulfiller is updated
+    event AuthorizedFulfillerUpdated(address indexed fulfiller, bool isAuthorized);
+
+    /// @notice Event emitted when beacon manager is set
+    event BeaconManagerSet(address indexed beaconManager);
+
+    /// @notice Event emitted when beacon ID is set
+    event BeaconIdSet(uint256 indexed beaconId);
+
+    /// @notice Event emitted when max CTRNG age is set
+    event MaxCTRNGAgeSet(uint256 maxAge);
+
     /// @notice Constructor
-    /// @param feedAdapter Address of the CTRNG feed adapter
-    constructor(address feedAdapter) {
-        if (feedAdapter == address(0)) revert InvalidAddress();
-        _feedAdapter = IOrbitportFeedAdapter(feedAdapter);
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    /// @param beaconManager Address of the CTRNG beacon manager
+    /// @param beaconId Beacon ID to read from
+    constructor(address beaconManager, uint256 beaconId) Ownable(msg.sender) {
+        if (beaconManager == address(0)) revert InvalidAddress();
+        _beaconManager = IOrbitportFeedManager(beaconManager);
+        _beaconId = beaconId;
+    }
+
+    /* ============ Modifiers ============ */
+
+    /// @dev Allows only authorized retrievers to call the function
+    modifier onlyAuthorizedRetriever() {
+        if (!_authorizedRetrievers[msg.sender]) revert CallerIsNotRetriever(msg.sender);
+        _;
+    }
+
+    /// @dev Allows only authorized fulfillers to call the function
+    modifier onlyAuthorizedFulfiller() {
+        if (!_authorizedFulfillers[msg.sender]) revert CallerIsNotFulfiller(msg.sender);
+        _;
     }
 
     /// @notice Request random words asynchronously
@@ -75,9 +111,11 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     /// @dev Only addresses with FULFILLER_ROLE can fulfill requests
     /// @param requestId Request ID
     /// @param randomWords Array of random words
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external override onlyRole(FULFILLER_ROLE) {
-        if (_requests[requestId].requester == address(0)) revert RequestNotFound(requestId);
+    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) external override onlyAuthorizedFulfiller {
+        RandomWordsRequest memory req = _requests[requestId];
+        if (req.requester == address(0)) revert RequestNotFound(requestId);
         if (_fulfilled[requestId]) revert RequestNotFound(requestId); // Already fulfilled
+        if (randomWords.length != req.numWords) revert InvalidRandomWordsLength(req.numWords, randomWords.length);
 
         _fulfilledRandomWords[requestId] = randomWords;
         _fulfilled[requestId] = true;
@@ -86,11 +124,11 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     }
 
     /// @notice Get instant randomness synchronously (request + fulfill immediately)
-    /// @dev Gets raw CTRNG data from adapter and combines with gas price for randomness
+    /// @dev Gets raw CTRNG data from beacon manager and combines with gas price for randomness
     /// @param numWords Number of random words requested
     /// @return requestId Request ID that was created and fulfilled
     /// @return randomWords Array of random words
-    function getInstantRandomness(uint32 numWords) external onlyRole(RETRIEVER_ROLE) returns (uint256 requestId, uint256[] memory randomWords) {
+    function getInstantRandomness(uint32 numWords) external onlyAuthorizedRetriever returns (uint256 requestId, uint256[] memory randomWords) {
         // Create a request
         requestId = ++_requestCounter;
 
@@ -110,18 +148,104 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
         randomWords = _fulfillInstantRequest(requestId, numWords);
     }
 
-
-    /// @notice Get the feed adapter address
-    /// @return address Feed adapter address
-    function getFeedAdapter() external view override returns (address) {
-        return address(_feedAdapter);
+    /// @notice Get the beacon manager address
+    /// @return address Beacon manager address
+    function getBeaconManager() external view override returns (address) {
+        return address(_beaconManager);
     }
 
-    /// @notice Set the feed adapter address
-    /// @param feedAdapter Address of the feed adapter
-    function setFeedAdapter(address feedAdapter) external override {
-        if (feedAdapter == address(0)) revert InvalidAddress();
-        _feedAdapter = IOrbitportFeedAdapter(feedAdapter);
+    /// @notice Set the beacon manager address
+    /// @param beaconManager Address of the beacon manager
+    function setBeaconManager(address beaconManager) external override onlyOwner {
+        if (beaconManager == address(0)) revert InvalidAddress();
+        _beaconManager = IOrbitportFeedManager(beaconManager);
+        emit BeaconManagerSet(beaconManager);
+    }
+
+    /// @notice Get the beacon ID
+    /// @return uint256 Beacon ID
+    function getBeaconId() external view override returns (uint256) {
+        return _beaconId;
+    }
+
+    /// @notice Set the beacon ID
+    /// @param beaconId Beacon ID to read from
+    function setBeaconId(uint256 beaconId) external override onlyOwner {
+        _beaconId = beaconId;
+        emit BeaconIdSet(beaconId);
+    }
+
+    /// @notice Get the maximum CTRNG age in seconds
+    /// @return uint256 Maximum age in seconds
+    function getMaxCTRNGAge() external view returns (uint256) {
+        return _maxCTRNGAge;
+    }
+
+    /// @notice Set the maximum CTRNG age in seconds
+    /// @param maxAge Maximum age in seconds
+    function setMaxCTRNGAge(uint256 maxAge) external onlyOwner {
+        _maxCTRNGAge = maxAge;
+        emit MaxCTRNGAgeSet(maxAge);
+    }
+
+    /// @notice Authorize or deauthorize retrievers
+    /// @param retrievers Array of retriever addresses
+    /// @param isAuthorized Array of booleans indicating whether the retriever is authorized
+    function setAuthorizedRetrievers(address[] calldata retrievers, bool[] calldata isAuthorized) external onlyOwner {
+        if (retrievers.length != isAuthorized.length) revert InvalidInput();
+        for (uint256 i = 0; i < retrievers.length; i++) {
+            if (retrievers[i] == address(0)) revert InvalidAddress();
+            _authorizedRetrievers[retrievers[i]] = isAuthorized[i];
+            emit AuthorizedRetrieverUpdated(retrievers[i], isAuthorized[i]);
+        }
+    }
+
+    /// @notice Authorize or deauthorize fulfillers
+    /// @param fulfillers Array of fulfiller addresses
+    /// @param isAuthorized Array of booleans indicating whether the fulfiller is authorized
+    function setAuthorizedFulfillers(address[] calldata fulfillers, bool[] calldata isAuthorized) external onlyOwner {
+        if (fulfillers.length != isAuthorized.length) revert InvalidInput();
+        for (uint256 i = 0; i < fulfillers.length; i++) {
+            if (fulfillers[i] == address(0)) revert InvalidAddress();
+            _authorizedFulfillers[fulfillers[i]] = isAuthorized[i];
+            emit AuthorizedFulfillerUpdated(fulfillers[i], isAuthorized[i]);
+        }
+    }
+
+    /// @notice Check if a retriever is authorized
+    /// @param retriever Retriever address
+    /// @return bool True if authorized
+    function isAuthorizedRetriever(address retriever) external view returns (bool) {
+        return _authorizedRetrievers[retriever];
+    }
+
+    /// @notice Check if a fulfiller is authorized
+    /// @param fulfiller Fulfiller address
+    /// @return bool True if authorized
+    function isAuthorizedFulfiller(address fulfiller) external view returns (bool) {
+        return _authorizedFulfillers[fulfiller];
+    }
+
+    /// @notice Get the latest raw CTRNG data
+    /// @return ctrng Array of raw CTRNG values
+    function getLatestCTRNGData() external onlyAuthorizedRetriever returns (uint256[] memory) {
+        IOrbitportFeedManager.CTRNGData memory data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+        return data.ctrng;
+    }
+
+    /// @notice Get raw CTRNG data for a specific round
+    /// @param roundId Round ID (sequence number). If 0, returns latest round data
+    /// @return ctrng Array of raw CTRNG values
+    function getCTRNGDataByRound(uint80 roundId) external onlyAuthorizedRetriever returns (uint256[] memory) {
+        IOrbitportFeedManager.CTRNGData memory data;
+
+        if (roundId == 0) {
+            data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+        } else {
+            data = _beaconManager.getCTRNGFeedBySequence(_beaconId, uint256(roundId));
+        }
+
+        return data.ctrng;
     }
 
     /// @notice Get request data for a request ID
@@ -154,8 +278,16 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, AccessControl {
     /// @param numWords Number of random words to generate
     /// @return randomWords Array of random words
     function _fulfillInstantRequest(uint256 requestId, uint32 numWords) internal returns (uint256[] memory) {
-        // Get raw CTRNG data from adapter
-        uint256[] memory ctrng = _feedAdapter.getLatestCTRNGData();
+        // Get raw CTRNG data from beacon manager
+        IOrbitportFeedManager.CTRNGData memory data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+        
+        // Validate freshness of CTRNG data
+        uint256 currentTime = block.timestamp;
+        if (currentTime > data.timestamp && (currentTime - data.timestamp) > _maxCTRNGAge) {
+            revert StaleCTRNGData(data.timestamp, currentTime, _maxCTRNGAge);
+        }
+        
+        uint256[] memory ctrng = data.ctrng;
 
         // Generate random words using raw CTRNG data and transaction-specific data
         uint256[] memory randomWords = new uint256[](numWords);

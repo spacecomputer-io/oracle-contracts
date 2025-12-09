@@ -58,12 +58,29 @@ interface IOrbitportVRFCoordinator {
     /// @return randomWords Array of random words
     function getInstantRandomness(uint32 numWords) external returns (uint256 requestId, uint256[] memory randomWords);
 
-    /// @notice Get the feed adapter address
-    /// @return address Feed adapter address
-    function getFeedAdapter() external view returns (address);
+    /// @notice Get the beacon manager address
+    /// @return address Beacon manager address
+    function getBeaconManager() external view returns (address);
 
-    /// @notice Set the feed adapter address
-    /// @param feedAdapter Address of the feed adapter
-    function setFeedAdapter(address feedAdapter) external;
+    /// @notice Set the beacon manager address
+    /// @param beaconManager Address of the beacon manager
+    function setBeaconManager(address beaconManager) external;
+
+    /// @notice Get the beacon ID
+    /// @return uint256 Beacon ID
+    function getBeaconId() external view returns (uint256);
+
+    /// @notice Set the beacon ID
+    /// @param beaconId Beacon ID to read from
+    function setBeaconId(uint256 beaconId) external;
+
+    /// @notice Get the latest raw CTRNG data
+    /// @return ctrng Array of raw CTRNG values
+    function getLatestCTRNGData() external returns (uint256[] memory);
+
+    /// @notice Get raw CTRNG data for a specific round
+    /// @param roundId Round ID (sequence number). If 0, returns latest round data
+    /// @return ctrng Array of raw CTRNG values
+    function getCTRNGDataByRound(uint80 roundId) external returns (uint256[] memory);
 }
 
