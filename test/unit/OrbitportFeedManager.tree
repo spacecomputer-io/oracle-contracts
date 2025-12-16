@@ -1,27 +1,120 @@
 OrbitportFeedManager
+├── constructor
+│   └── it should disable initializers
 ├── initialize
-│   └── when called by owner
+│   ├── when feedVerifier is zero address
+│   │   └── it should revert with InvalidAddress
+│   ├── when pauserRegistry is zero address
+│   │   └── it should revert with InvalidAddress
+│   ├── when feedDeployer is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when all parameters are valid
 │       └── it should initialize contract with verifier, owner, pauser registry, and feed deployer
+├── setFeedVerifier
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when feedVerifier is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and address is valid
+│       └── it should set feed verifier and emit FeedVerifierSet
+├── setFeedDeployer
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when feedDeployer is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and address is valid
+│       └── it should set feed deployer and emit FeedDeployerSet
+├── setSupportedFeeds
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when feedIds and isSupported arrays have different lengths
+│   │   └── it should revert with InvalidInput
+│   └── when caller is owner and arrays are valid
+│       └── it should update supported feeds and emit SupportedFeedsUpdated for each feed
+├── addSupportedFeeds
+│   ├── when caller is not feed deployer
+│   │   └── it should revert with CallerIsNotFeedDeployer
+│   └── when caller is feed deployer
+│       └── it should add supported feeds and emit SupportedFeedsUpdated for each feed
+├── whitelistPublishers
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when publishers and isWhitelisted arrays have different lengths
+│   │   └── it should revert with InvalidInput
+│   ├── when publisher address is zero
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and all parameters are valid
+│       └── it should whitelist publishers and emit PublisherWhitelisted for each publisher
+├── setAuthorizedCallers
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when callers and isAuthorized arrays have different lengths
+│   │   └── it should revert with InvalidInput
+│   ├── when caller address is zero
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and all parameters are valid
+│       └── it should authorize or deauthorize callers and emit AuthorizedCallerUpdated for each caller
+├── updateFeed
+│   ├── when caller is not whitelisted publisher
+│   │   └── it should revert with CallerIsNotWhitelisted
+│   ├── when contract is paused
+│   │   └── it should revert
+│   ├── when feed ID is not supported
+│   │   └── it should revert with FeedNotSupported
+│   └── when caller is whitelisted, not paused, and feed is supported
+│       ├── when sequence is greater than latest or latest is 0
+│       │   └── it should update the feed and emit CTRNGUpdated
+│       └── when sequence is less than or equal to latest
+│           └── it should skip update (no event)
+├── updateFeeds
+│   ├── when caller is not whitelisted publisher
+│   │   └── it should revert with CallerIsNotWhitelisted
+│   ├── when contract is paused
+│   │   └── it should revert
+│   ├── when inputs array is empty
+│   │   └── it should revert with MissingLeafInputs
+│   └── when caller is whitelisted, not paused, and inputs are provided
+│       └── it should update all feeds and emit CTRNGUpdated for each updated feed
+├── setPauserRegistry
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when pauserRegistry is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and address is valid
+│       └── it should set pauser registry and emit PauserRegistrySet
+├── pause
+│   ├── when caller is not pauser
+│   │   └── it should revert with CallerIsNotPauser
+│   └── when caller is pauser
+│       └── it should pause the contract
+├── unpause
+│   ├── when caller is not unpauser
+│   │   └── it should revert with CallerIsNotUnpauser
+│   └── when caller is unpauser
+│       └── it should unpause the contract
 ├── getLatestCTRNGFeed
 │   ├── when caller is not authorized
-│   │   └── it should revert
-│   └── when caller is authorized
+│   │   └── it should revert with CallerIsNotRetriever
+│   ├── when feed ID is not supported
+│   │   └── it should revert with FeedNotSupported
+│   ├── when latest sequence is 0
+│   │   └── it should revert with SequenceNotFound
+│   └── when caller is authorized, feed is supported, and sequence exists
 │       └── it should return the latest CTRNG data
 ├── getCTRNGFeedBySequence
 │   ├── when caller is not authorized
-│   │   └── it should revert
-│   └── when caller is authorized
+│   │   └── it should revert with CallerIsNotRetriever
+│   ├── when feed ID is not supported
+│   │   └── it should revert with FeedNotSupported
+│   ├── when sequence is not found (sequence != 0 and data.sequence == 0)
+│   │   └── it should revert with SequenceNotFound
+│   └── when caller is authorized, feed is supported, and sequence exists
 │       └── it should return the CTRNG data for the sequence
 ├── getLatestSequence
 │   ├── when caller is not authorized
-│   │   └── it should revert
+│   │   └── it should revert with CallerIsNotRetriever
 │   └── when caller is authorized
 │       └── it should return latest sequence
-├── updateFeed
-│   ├── when caller is whitelisted publisher
-│   │   └── it should update the feed with verified CTRNG data
-│   └── when caller is not whitelisted publisher
-│       └── it should revert
 ├── isWhitelistedPublisher
 │   └── it should return whitelist status
 ├── isSupportedFeed
@@ -30,6 +123,5 @@ OrbitportFeedManager
 │   └── it should return verifier address
 ├── getFeedDeployer
 │   └── it should return deployer address
-└── setAuthorizedCallers
-    └── when caller is owner
-        └── it should authorize or deauthorize callers
+└── isAuthorizedCaller
+    └── it should return authorization status

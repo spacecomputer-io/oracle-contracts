@@ -1,30 +1,103 @@
 OrbitportVRFCoordinator
+├── constructor
+│   ├── when beaconManager is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when all parameters are valid
+│       └── it should initialize contract with beacon manager and beacon ID
 ├── requestRandomWords
 │   └── it should create a request and return request ID
+├── fulfillRandomWords
+│   ├── when caller is fulfiller
+│   │   ├── when request not found
+│   │   │   └── it should revert with RequestNotFound
+│   │   ├── when request already fulfilled
+│   │   │   └── it should revert with RequestNotFound
+│   │   ├── when randomWords length doesn't match request
+│   │   │   └── it should revert with InvalidRandomWordsLength
+│   │   └── when all conditions are met
+│   │       └── it should fulfill the request and emit RandomWordsFulfilled
+│   └── when caller is not fulfiller
+│       └── it should revert with CallerIsNotFulfiller
 ├── getInstantRandomness
 │   ├── when caller is not retriever
 │   │   └── it should revert with CallerIsNotRetriever
 │   └── when caller is retriever
-│       ├── it should return random words from beacon manager
-│       ├── it should return unique values within batch
-│       ├── multiple calls should return unique values
-│       └── it should handle large numWords
-├── fulfillRandomWords
-│   ├── when caller is fulfiller
-│   │   └── it should fulfill the request
-│   ├── when caller is not fulfiller
-│   │   └── it should revert with CallerIsNotFulfiller
+│       ├── when CTRNG data is stale
+│       │   └── it should revert with StaleCTRNGData
+│       └── when CTRNG data is fresh
+│           ├── it should return random words from beacon manager
+│           ├── it should return unique values within batch
+│           ├── multiple calls should return unique values
+│           └── it should handle large numWords
+├── setBeaconManager
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when beaconManager is zero address
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and address is valid
+│       └── it should set beacon manager and emit BeaconManagerSet
+├── setBeaconId
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   └── when caller is owner
+│       └── it should set beacon ID and emit BeaconIdSet
+├── setMaxCTRNGAge
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   └── when caller is owner
+│       └── it should set max CTRNG age and emit MaxCTRNGAgeSet
+├── getMaxCTRNGAge
+│   └── it should return max CTRNG age
+├── getBeaconManager
+│   └── it should return beacon manager address
+├── getBeaconId
+│   └── it should return beacon ID
+├── getLatestCTRNGData
+│   ├── when caller is not retriever
+│   │   └── it should revert with CallerIsNotRetriever
+│   └── when caller is retriever
+│       └── it should return latest CTRNG data
+├── getCTRNGDataByRound
+│   ├── when caller is not retriever
+│   │   └── it should revert with CallerIsNotRetriever
+│   └── when caller is retriever
+│       ├── when roundId is 0
+│       │   └── it should return latest round data
+│       └── when roundId is greater than 0
+│           └── it should return CTRNG data for the sequence
+├── getRequest
 │   ├── when request not found
 │   │   └── it should revert with RequestNotFound
-│   └── when already fulfilled
-│       └── it should revert with RequestNotFound
+│   └── when request exists
+│       └── it should return request data
+├── getFulfilledRandomWords
+│   ├── when request not fulfilled
+│   │   └── it should revert with RequestNotFound
+│   └── when request is fulfilled
+│       └── it should return fulfilled random words
+├── isFulfilled
+│   └── it should return fulfillment status
 ├── setAuthorizedRetrievers
-│   ├── when caller is owner
-│   │   ├── it should authorize retriever
-│   │   └── it should deauthorize retriever
-│   └── when caller is not owner
-│       └── it should revert
-└── setAuthorizedFulfillers
-    └── when caller is owner
-        ├── it should authorize fulfiller
-        └── it should deauthorize fulfiller
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when retrievers and isAuthorized arrays have different lengths
+│   │   └── it should revert with InvalidInput
+│   ├── when retriever address is zero
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and all parameters are valid
+│       ├── it should authorize retriever
+│       └── it should deauthorize retriever
+├── setAuthorizedFulfillers
+│   ├── when caller is not owner
+│   │   └── it should revert
+│   ├── when fulfillers and isAuthorized arrays have different lengths
+│   │   └── it should revert with InvalidInput
+│   ├── when fulfiller address is zero
+│   │   └── it should revert with InvalidAddress
+│   └── when caller is owner and all parameters are valid
+│       ├── it should authorize fulfiller
+│       └── it should deauthorize fulfiller
+├── isAuthorizedRetriever
+│   └── it should return retriever authorization status
+└── isAuthorizedFulfiller
+    └── it should return fulfiller authorization status
