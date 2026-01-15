@@ -4,8 +4,8 @@ pragma solidity 0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {OrbitportVRFAdapter} from "../../src/OrbitportVRFAdapter.sol";
 import {IOrbitportVRFAdapter} from "../../src/interfaces/IOrbitportVRFAdapter.sol";
-import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
-import {MockOrbitportFeedManager} from "../mocks/MockOrbitportFeedManager.sol";
+import {IOrbitportBeaconManager} from "../../src/interfaces/IOrbitportBeaconManager.sol";
+import {MockOrbitportBeaconManager} from "../mocks/MockOrbitportBeaconManager.sol";
 import {
     RequestNotFound,
     CallerIsNotRetriever,
@@ -17,7 +17,7 @@ import {
 } from "../../src/interfaces/Errors.sol";
 
 contract OrbitportVRFAdapterTest is Test {
-    MockOrbitportFeedManager public mockFeedManager;
+    MockOrbitportBeaconManager public mockBeaconManager;
     OrbitportVRFAdapter public vrfAdapter;
     address public owner;
     address public requester;
@@ -33,10 +33,10 @@ contract OrbitportVRFAdapterTest is Test {
         retriever = address(0x8);
         fulfiller = address(0x9);
 
-        mockFeedManager = new MockOrbitportFeedManager();
+        mockBeaconManager = new MockOrbitportBeaconManager();
 
         vm.prank(owner);
-        vrfAdapter = new OrbitportVRFAdapter(address(mockFeedManager), BEACON_ID);
+        vrfAdapter = new OrbitportVRFAdapter(address(mockBeaconManager), BEACON_ID);
 
         // Authorize retrievers
         address[] memory retrievers = new address[](1);
@@ -60,13 +60,13 @@ contract OrbitportVRFAdapterTest is Test {
         ctrngValues[3] = 40;
         ctrngValues[4] = 50;
 
-        IOrbitportFeedManager.CTRNGData memory data = IOrbitportFeedManager.CTRNGData({
+        IOrbitportBeaconManager.CTRNGData memory data = IOrbitportBeaconManager.CTRNGData({
             sequence: 1,
             timestamp: block.timestamp,
             ctrng: ctrngValues,
             blockNumber: block.number
         });
-        mockFeedManager.setLatestCTRNGFeed(BEACON_ID, data);
+        mockBeaconManager.setLatestCTRNGBeacon(BEACON_ID, data);
     }
 
     function test_RequestRandomWords() public {
@@ -382,7 +382,7 @@ contract OrbitportVRFAdapterTest is Test {
     }
 
     function test_Constructor_GivenValidParams() public {
-        MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
+        MockOrbitportBeaconManager newManager = new MockOrbitportBeaconManager();
         vm.prank(owner);
         OrbitportVRFAdapter newAdapter = new OrbitportVRFAdapter(address(newManager), BEACON_ID);
 
@@ -393,7 +393,7 @@ contract OrbitportVRFAdapterTest is Test {
     /* ============ setBeaconManager Tests ============ */
 
     function test_RevertWhen_CallerIsNotOwner_SetBeaconManager() public {
-        MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
+        MockOrbitportBeaconManager newManager = new MockOrbitportBeaconManager();
         vm.prank(requester);
         vm.expectRevert();
         vrfAdapter.setBeaconManager(address(newManager));
@@ -406,7 +406,7 @@ contract OrbitportVRFAdapterTest is Test {
     }
 
     function test_SetBeaconManager_GivenOwner() public {
-        MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
+        MockOrbitportBeaconManager newManager = new MockOrbitportBeaconManager();
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
         emit OrbitportVRFAdapter.BeaconManagerSet(address(newManager));
@@ -453,20 +453,20 @@ contract OrbitportVRFAdapterTest is Test {
 
     /* ============ getMaxCTRNGAge Tests ============ */
 
-    function test_GetMaxCTRNGAge() public {
+    function test_GetMaxCTRNGAge() public view {
         uint256 maxAge = vrfAdapter.getMaxCTRNGAge();
         assertEq(maxAge, 3600); // Default value
     }
 
     /* ============ getBeaconManager Tests ============ */
 
-    function test_GetBeaconManager() public {
-        assertEq(vrfAdapter.getBeaconManager(), address(mockFeedManager));
+    function test_GetBeaconManager() public view {
+        assertEq(vrfAdapter.getBeaconManager(), address(mockBeaconManager));
     }
 
     /* ============ getBeaconId Tests ============ */
 
-    function test_GetBeaconId() public {
+    function test_GetBeaconId() public view {
         assertEq(vrfAdapter.getBeaconId(), BEACON_ID);
     }
 
@@ -502,13 +502,13 @@ contract OrbitportVRFAdapterTest is Test {
 
     function test_GetCTRNGDataByRound_WhenRoundIdGreaterThanZero() public {
         uint80 roundId = 1;
-        IOrbitportFeedManager.CTRNGData memory roundData = IOrbitportFeedManager.CTRNGData({
+        IOrbitportBeaconManager.CTRNGData memory roundData = IOrbitportBeaconManager.CTRNGData({
             sequence: uint256(roundId),
             timestamp: block.timestamp,
             ctrng: ctrngValues,
             blockNumber: block.number
         });
-        mockFeedManager.setCTRNGFeedBySequence(BEACON_ID, uint256(roundId), roundData);
+        mockBeaconManager.setCTRNGBeaconBySequence(BEACON_ID, uint256(roundId), roundData);
 
         vm.prank(retriever);
         uint256[] memory data = vrfAdapter.getCTRNGDataByRound(roundId);
@@ -683,13 +683,13 @@ contract OrbitportVRFAdapterTest is Test {
 
         // Set old timestamp (more than max age of 3600)
         uint256 staleTimestamp = futureTimestamp - 4000;
-        IOrbitportFeedManager.CTRNGData memory staleData = IOrbitportFeedManager.CTRNGData({
+        IOrbitportBeaconManager.CTRNGData memory staleData = IOrbitportBeaconManager.CTRNGData({
             sequence: 1,
             timestamp: staleTimestamp,
             ctrng: ctrngValues,
             blockNumber: block.number
         });
-        mockFeedManager.setLatestCTRNGFeed(BEACON_ID, staleData);
+        mockBeaconManager.setLatestCTRNGBeacon(BEACON_ID, staleData);
 
         vm.prank(retriever);
         vm.expectRevert(
