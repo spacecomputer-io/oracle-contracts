@@ -85,10 +85,6 @@ interface IOrbitportVRFAdapter {
     /// @return uint256 Beacon ID
     function getBeaconId() external view returns (uint256);
 
-    /// @notice Set the beacon ID
-    /// @param beaconId Beacon ID to read from
-    function setBeaconId(uint256 beaconId) external;
-
     /// @notice Get the latest raw CTRNG data
     /// @return ctrng Array of raw CTRNG values
     function getLatestCTRNGData() external returns (uint256[] memory);

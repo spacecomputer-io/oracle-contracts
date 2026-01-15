@@ -10,9 +10,6 @@ error CallerIsNotWhitelisted(address caller);
 /// @notice Thrown when leaf inputs are missing
 error MissingLeafInputs();
 
-/// @notice Thrown when feed ID is not supported
-error FeedNotSupported(uint256 feedId);
-
 /// @notice Thrown when beacon ID is not supported
 error BeaconNotSupported(uint256 beaconId);
 
@@ -31,8 +28,8 @@ error CallerIsNotPauser();
 /// @notice Thrown when caller is not an unpauser
 error CallerIsNotUnpauser();
 
-/// @notice Thrown when caller is not the feed deployer
-error CallerIsNotFeedDeployer();
+/// @notice Thrown when caller is not the beacon deployer
+error CallerIsNotBeaconDeployer();
 
 /// @notice Thrown when sequence is not found
 error SequenceNotFound(uint256 sequence);

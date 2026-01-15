@@ -409,28 +409,10 @@ contract OrbitportVRFAdapterTest is Test {
         MockOrbitportBeaconManager newManager = new MockOrbitportBeaconManager();
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFAdapter.BeaconManagerSet(address(newManager));
+        emit IOrbitportVRFAdapter.BeaconManagerSet(address(newManager));
         vrfAdapter.setBeaconManager(address(newManager));
 
         assertEq(vrfAdapter.getBeaconManager(), address(newManager));
-    }
-
-    /* ============ setBeaconId Tests ============ */
-
-    function test_RevertWhen_CallerIsNotOwner_SetBeaconId() public {
-        vm.prank(requester);
-        vm.expectRevert();
-        vrfAdapter.setBeaconId(2);
-    }
-
-    function test_SetBeaconId_GivenOwner() public {
-        uint256 newBeaconId = 2;
-        vm.prank(owner);
-        vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFAdapter.BeaconIdSet(newBeaconId);
-        vrfAdapter.setBeaconId(newBeaconId);
-
-        assertEq(vrfAdapter.getBeaconId(), newBeaconId);
     }
 
     /* ============ setMaxCTRNGAge Tests ============ */
@@ -445,7 +427,7 @@ contract OrbitportVRFAdapterTest is Test {
         uint256 newMaxAge = 7200;
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFAdapter.MaxCTRNGAgeSet(newMaxAge);
+        emit IOrbitportVRFAdapter.MaxCTRNGAgeSet(newMaxAge);
         vrfAdapter.setMaxCTRNGAge(newMaxAge);
 
         assertEq(vrfAdapter.getMaxCTRNGAge(), newMaxAge);

@@ -3,9 +3,9 @@ pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 import {OrbitportVRFAdapter} from "../../src/OrbitportVRFAdapter.sol";
-import {OrbitportFeedManager} from "../../src/OrbitportFeedManager.sol";
+import {OrbitportBeaconManager} from "../../src/OrbitportBeaconManager.sol";
 import {IOrbitportVRFAdapter} from "../../src/interfaces/IOrbitportVRFAdapter.sol";
-import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
+import {IOrbitportBeaconManager} from "../../src/interfaces/IOrbitportBeaconManager.sol";
 import {IEOFeedVerifier} from "target-contracts/src/interfaces/IEOFeedVerifier.sol";
 import {IPauserRegistry} from "eigenlayer-contracts/src/contracts/interfaces/IPauserRegistry.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -16,13 +16,13 @@ import {MockEOFeedVerifier} from "../mocks/MockEOFeedVerifier.sol";
 import {MockPauserRegistry} from "../mocks/MockPauserRegistry.sol";
 
 contract OrbitportVRFAdapterIntegrationTest is Test {
-    OrbitportFeedManager public feedManager;
+    OrbitportBeaconManager public beaconManager;
     OrbitportVRFAdapter public vrfAdapter;
     MockEOFeedVerifier public verifier;
     MockPauserRegistry public pauserRegistry;
     address public owner;
     address public publisher;
-    address public feedDeployer;
+    address public beaconDeployer;
     address public requester;
     address public retriever;
     address public fulfiller;
@@ -35,7 +35,7 @@ contract OrbitportVRFAdapterIntegrationTest is Test {
     function setUp() public {
         owner = address(0x1);
         publisher = address(0x5);
-        feedDeployer = address(0x4);
+        beaconDeployer = address(0x4);
         requester = address(0x7);
         retriever = address(0x8);
         fulfiller = address(0x9);
@@ -44,17 +44,17 @@ contract OrbitportVRFAdapterIntegrationTest is Test {
         pauserRegistry = new MockPauserRegistry(address(0x3));
 
         vm.startPrank(owner);
-        feedManager = new OrbitportFeedManager();
+        beaconManager = new OrbitportBeaconManager();
 
         bytes memory initData = abi.encodeWithSelector(
-            OrbitportFeedManager.initialize.selector,
+            OrbitportBeaconManager.initialize.selector,
             address(verifier),
             owner,
             address(pauserRegistry),
-            feedDeployer
+            beaconDeployer
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(feedManager), initData);
-        feedManager = OrbitportFeedManager(payable(address(proxy)));
+        ERC1967Proxy proxy = new ERC1967Proxy(address(beaconManager), initData);
+        beaconManager = OrbitportBeaconManager(payable(address(proxy)));
 
         // Setup initial data
         ctrngValues = new uint256[](5);
@@ -69,22 +69,22 @@ contract OrbitportVRFAdapterIntegrationTest is Test {
         publishers[0] = publisher;
         bool[] memory isWhitelisted = new bool[](1);
         isWhitelisted[0] = true;
-        feedManager.whitelistPublishers(publishers, isWhitelisted);
+        beaconManager.whitelistPublishers(publishers, isWhitelisted);
 
-        // Set supported feed
-        uint256[] memory feedIds = new uint256[](1);
-        feedIds[0] = BEACON_ID;
+        // Set supported beacon
+        uint256[] memory beaconIds = new uint256[](1);
+        beaconIds[0] = BEACON_ID;
         bool[] memory supported = new bool[](1);
         supported[0] = true;
-        feedManager.setSupportedFeeds(feedIds, supported);
+        beaconManager.setSupportedBeacons(beaconIds, supported);
 
-        // Authorize VRF adapter to call feed manager
+        // Authorize VRF adapter to call beacon manager
         address[] memory authorizedCallers = new address[](1);
         authorizedCallers[0] = address(0); // Will be set after adapter deployment
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
 
-        // Update feed with data
+        // Update beacon with data
         bytes memory inputData = abi.encode(BEACON_ID, SEQUENCE, TIMESTAMP, ctrngValues);
         bytes memory verifiedData = abi.encode(BEACON_ID, SEQUENCE, TIMESTAMP, ctrngValues);
 
@@ -108,16 +108,16 @@ contract OrbitportVRFAdapterIntegrationTest is Test {
 
         vm.stopPrank();
         vm.prank(publisher);
-        feedManager.updateFeed(input, vParams);
+        beaconManager.updateBeacon(input, vParams);
 
         // Create VRF adapter
         vm.prank(owner);
-        vrfAdapter = new OrbitportVRFAdapter(address(feedManager), BEACON_ID);
+        vrfAdapter = new OrbitportVRFAdapter(address(beaconManager), BEACON_ID);
 
-        // Authorize VRF adapter to call feed manager
+        // Authorize VRF adapter to call beacon manager
         authorizedCallers[0] = address(vrfAdapter);
         vm.prank(owner);
-        feedManager.setAuthorizedCallers(authorizedCallers, isAuthorized);
+        beaconManager.setAuthorizedCallers(authorizedCallers, isAuthorized);
 
         // Authorize retrievers
         address[] memory retrievers = new address[](1);

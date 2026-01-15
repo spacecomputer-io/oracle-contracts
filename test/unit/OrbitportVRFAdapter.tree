@@ -36,11 +36,6 @@ OrbitportVRFAdapter
 │   │   └── it should revert with InvalidAddress
 │   └── when caller is owner and address is valid
 │       └── it should set beacon manager and emit BeaconManagerSet
-├── setBeaconId
-│   ├── when caller is not owner
-│   │   └── it should revert
-│   └── when caller is owner
-│       └── it should set beacon ID and emit BeaconIdSet
 ├── setMaxCTRNGAge
 │   ├── when caller is not owner
 │   │   └── it should revert

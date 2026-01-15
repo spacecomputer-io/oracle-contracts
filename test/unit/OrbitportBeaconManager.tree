@@ -1,4 +1,4 @@
-OrbitportFeedManager
+OrbitportBeaconManager
 ├── constructor
 │   └── it should disable initializers
 ├── initialize
@@ -6,10 +6,10 @@ OrbitportFeedManager
 │   │   └── it should revert with InvalidAddress
 │   ├── when pauserRegistry is zero address
 │   │   └── it should revert with InvalidAddress
-│   ├── when feedDeployer is zero address
+│   ├── when beaconDeployer is zero address
 │   │   └── it should revert with InvalidAddress
 │   └── when all parameters are valid
-│       └── it should initialize contract with verifier, owner, pauser registry, and feed deployer
+│       └── it should initialize contract with verifier, owner, pauser registry, and beacon deployer
 ├── setFeedVerifier
 │   ├── when caller is not owner
 │   │   └── it should revert
@@ -17,25 +17,25 @@ OrbitportFeedManager
 │   │   └── it should revert with InvalidAddress
 │   └── when caller is owner and address is valid
 │       └── it should set feed verifier and emit FeedVerifierSet
-├── setFeedDeployer
+├── setBeaconDeployer
 │   ├── when caller is not owner
 │   │   └── it should revert
-│   ├── when feedDeployer is zero address
+│   ├── when beaconDeployer is zero address
 │   │   └── it should revert with InvalidAddress
 │   └── when caller is owner and address is valid
-│       └── it should set feed deployer and emit FeedDeployerSet
-├── setSupportedFeeds
+│       └── it should set beacon deployer and emit BeaconDeployerSet
+├── setSupportedBeacons
 │   ├── when caller is not owner
 │   │   └── it should revert
-│   ├── when feedIds and isSupported arrays have different lengths
+│   ├── when beaconIds and isSupported arrays have different lengths
 │   │   └── it should revert with InvalidInput
 │   └── when caller is owner and arrays are valid
-│       └── it should update supported feeds and emit SupportedFeedsUpdated for each feed
-├── addSupportedFeeds
-│   ├── when caller is not feed deployer
-│   │   └── it should revert with CallerIsNotFeedDeployer
-│   └── when caller is feed deployer
-│       └── it should add supported feeds and emit SupportedFeedsUpdated for each feed
+│       └── it should update supported beacons and emit SupportedBeaconsUpdated for each beacon
+├── addSupportedBeacons
+│   ├── when caller is not beacon deployer
+│   │   └── it should revert with CallerIsNotBeaconDeployer
+│   └── when caller is beacon deployer
+│       └── it should add supported beacons and emit SupportedBeaconsUpdated for each beacon
 ├── whitelistPublishers
 │   ├── when caller is not owner
 │   │   └── it should revert
@@ -54,19 +54,19 @@ OrbitportFeedManager
 │   │   └── it should revert with InvalidAddress
 │   └── when caller is owner and all parameters are valid
 │       └── it should authorize or deauthorize callers and emit AuthorizedCallerUpdated for each caller
-├── updateFeed
+├── updateBeacon
 │   ├── when caller is not whitelisted publisher
 │   │   └── it should revert with CallerIsNotWhitelisted
 │   ├── when contract is paused
 │   │   └── it should revert
-│   ├── when feed ID is not supported
-│   │   └── it should revert with FeedNotSupported
-│   └── when caller is whitelisted, not paused, and feed is supported
+│   ├── when beacon ID is not supported
+│   │   └── it should revert with BeaconNotSupported
+│   └── when caller is whitelisted, not paused, and beacon is supported
 │       ├── when sequence is greater than latest or latest is 0
-│       │   └── it should update the feed and emit CTRNGUpdated
+│       │   └── it should update the beacon and emit CTRNGUpdated
 │       └── when sequence is less than or equal to latest
 │           └── it should skip update (no event)
-├── updateFeeds
+├── updateBeacons
 │   ├── when caller is not whitelisted publisher
 │   │   └── it should revert with CallerIsNotWhitelisted
 │   ├── when contract is paused
@@ -74,7 +74,7 @@ OrbitportFeedManager
 │   ├── when inputs array is empty
 │   │   └── it should revert with MissingLeafInputs
 │   └── when caller is whitelisted, not paused, and inputs are provided
-│       └── it should update all feeds and emit CTRNGUpdated for each updated feed
+│       └── it should update all beacons and emit CTRNGUpdated for each updated beacon
 ├── setPauserRegistry
 │   ├── when caller is not owner
 │   │   └── it should revert
@@ -92,23 +92,23 @@ OrbitportFeedManager
 │   │   └── it should revert with CallerIsNotUnpauser
 │   └── when caller is unpauser
 │       └── it should unpause the contract
-├── getLatestCTRNGFeed
+├── getLatestCTRNGBeacon
 │   ├── when caller is not authorized
 │   │   └── it should revert with CallerIsNotRetriever
-│   ├── when feed ID is not supported
-│   │   └── it should revert with FeedNotSupported
+│   ├── when beacon ID is not supported
+│   │   └── it should revert with BeaconNotSupported
 │   ├── when latest sequence is 0
 │   │   └── it should revert with SequenceNotFound
-│   └── when caller is authorized, feed is supported, and sequence exists
+│   └── when caller is authorized, beacon is supported, and sequence exists
 │       └── it should return the latest CTRNG data
-├── getCTRNGFeedBySequence
+├── getCTRNGBeaconBySequence
 │   ├── when caller is not authorized
 │   │   └── it should revert with CallerIsNotRetriever
-│   ├── when feed ID is not supported
-│   │   └── it should revert with FeedNotSupported
+│   ├── when beacon ID is not supported
+│   │   └── it should revert with BeaconNotSupported
 │   ├── when sequence is not found (sequence != 0 and data.sequence == 0)
 │   │   └── it should revert with SequenceNotFound
-│   └── when caller is authorized, feed is supported, and sequence exists
+│   └── when caller is authorized, beacon is supported, and sequence exists
 │       └── it should return the CTRNG data for the sequence
 ├── getLatestSequence
 │   ├── when caller is not authorized
@@ -117,11 +117,11 @@ OrbitportFeedManager
 │       └── it should return latest sequence
 ├── isWhitelistedPublisher
 │   └── it should return whitelist status
-├── isSupportedFeed
+├── isSupportedBeacon
 │   └── it should return supported status
 ├── getFeedVerifier
 │   └── it should return verifier address
-├── getFeedDeployer
+├── getBeaconDeployer
 │   └── it should return deployer address
 └── isAuthorizedCaller
     └── it should return authorization status
