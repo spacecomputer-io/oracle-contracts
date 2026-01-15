@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/// @title IOrbitportVRFCoordinator
-/// @notice Interface for Orbitport VRF Coordinator contract
-interface IOrbitportVRFCoordinator {
+/// @title IOrbitportVRFAdapter
+/// @notice Interface for Orbitport VRF Adapter contract
+interface IOrbitportVRFAdapter {
     /// @notice Request structure for random words
     struct RandomWordsRequest {
         address requester;
@@ -83,4 +83,3 @@ interface IOrbitportVRFCoordinator {
     /// @return ctrng Array of raw CTRNG values
     function getCTRNGDataByRound(uint80 roundId) external returns (uint256[] memory);
 }
-

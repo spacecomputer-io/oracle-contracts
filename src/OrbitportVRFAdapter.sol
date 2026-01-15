@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOrbitportVRFCoordinator } from "./interfaces/IOrbitportVRFCoordinator.sol";
+import { IOrbitportVRFAdapter } from "./interfaces/IOrbitportVRFAdapter.sol";
 import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
 import { InvalidAddress, RequestNotFound, CallerIsNotRetriever, CallerIsNotFulfiller, StaleCTRNGData, InvalidRandomWordsLength, InvalidInput } from "./interfaces/Errors.sol";
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
-/// @title OrbitportVRFCoordinator
-/// @notice Simplified VRF Coordinator contract that uses CTRNG beacon data for randomness
+/// @title OrbitportVRFAdapter
+/// @notice Simplified VRF Adapter contract that uses CTRNG beacon data for randomness
 /// @dev Maintains compatibility with Chainlink VRF interface while using CTRNG beacon manager directly
-contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
+contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @dev Map of authorized retrievers (retriever => is authorized)
     mapping(address => bool) internal _authorizedRetrievers;
 
@@ -280,13 +280,13 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
     function _fulfillInstantRequest(uint256 requestId, uint32 numWords) internal returns (uint256[] memory) {
         // Get raw CTRNG data from beacon manager
         IOrbitportFeedManager.CTRNGData memory data = _beaconManager.getLatestCTRNGFeed(_beaconId);
-        
+
         // Validate freshness of CTRNG data
         uint256 currentTime = block.timestamp;
         if (currentTime > data.timestamp && (currentTime - data.timestamp) > _maxCTRNGAge) {
             revert StaleCTRNGData(data.timestamp, currentTime, _maxCTRNGAge);
         }
-        
+
         uint256[] memory ctrng = data.ctrng;
 
         // Generate random words using raw CTRNG data and transaction-specific data
@@ -295,7 +295,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
             uint256 nonce = 0;
             uint256 randomWord;
             bool unique = false;
-            
+
             // Keep regenerating until we find a unique random word
             while (!unique) {
                 bytes32 hash = keccak256(
@@ -311,7 +311,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
                     )
                 );
                 randomWord = uint256(hash);
-                
+
                 if (!_consumedRandomness[randomWord]) {
                     unique = true;
                     _consumedRandomness[randomWord] = true;
@@ -319,7 +319,7 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
                     nonce++;
                 }
             }
-            
+
             randomWords[i] = randomWord;
         }
 
@@ -330,4 +330,3 @@ contract OrbitportVRFCoordinator is IOrbitportVRFCoordinator, Ownable {
         return randomWords;
     }
 }
-

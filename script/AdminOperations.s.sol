@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import {Script, console} from "forge-std/Script.sol";
 import {OrbitportFeedManager} from "../src/OrbitportFeedManager.sol";
-import {OrbitportVRFCoordinator} from "../src/OrbitportVRFCoordinator.sol";
+import {OrbitportVRFAdapter} from "../src/OrbitportVRFAdapter.sol";
 
 /// @title AdminOperations
 /// @notice Script for executing critical admin operations
@@ -72,27 +72,27 @@ contract AdminOperations is Script {
         console.log("Publishers whitelisted successfully");
     }
 
-    /// @notice Authorize or deauthorize retrievers for VRFCoordinator
+    /// @notice Authorize or deauthorize retrievers for VRFAdapter
     /// @param retrievers Array of retriever addresses
     /// @param isAuthorized Array of booleans indicating authorization status
     function authorizeRetrievers(address[] memory retrievers, bool[] memory isAuthorized) external {
-        address vrfCoordinatorAddress = vm.envAddress("VRF_COORDINATOR_ADDRESS");
-        OrbitportVRFCoordinator vrfCoordinator = OrbitportVRFCoordinator(payable(vrfCoordinatorAddress));
+        address vrfAdapterAddress = vm.envAddress("VRF_ADAPTER_ADDRESS");
+        OrbitportVRFAdapter vrfAdapter = OrbitportVRFAdapter(payable(vrfAdapterAddress));
 
         console.log("=== Authorizing Retrievers ===");
-        console.log("VRFCoordinator:", vrfCoordinatorAddress);
+        console.log("VRFAdapter:", vrfAdapterAddress);
         console.log("Number of retrievers:", retrievers.length);
 
         require(retrievers.length == isAuthorized.length, "Arrays length mismatch");
 
         vm.startBroadcast();
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
         vm.stopBroadcast();
 
         // Verify
         for (uint256 i = 0; i < retrievers.length; i++) {
             require(
-                vrfCoordinator.isAuthorizedRetriever(retrievers[i]) == isAuthorized[i],
+                vrfAdapter.isAuthorizedRetriever(retrievers[i]) == isAuthorized[i],
                 "Retriever authorization verification failed"
             );
             console.log("Retriever:", retrievers[i], "Authorized:", isAuthorized[i]);
@@ -101,27 +101,27 @@ contract AdminOperations is Script {
         console.log("Retrievers authorized successfully");
     }
 
-    /// @notice Authorize or deauthorize fulfillers for VRFCoordinator
+    /// @notice Authorize or deauthorize fulfillers for VRFAdapter
     /// @param fulfillers Array of fulfiller addresses
     /// @param isAuthorized Array of booleans indicating authorization status
     function authorizeFulfillers(address[] memory fulfillers, bool[] memory isAuthorized) external {
-        address vrfCoordinatorAddress = vm.envAddress("VRF_COORDINATOR_ADDRESS");
-        OrbitportVRFCoordinator vrfCoordinator = OrbitportVRFCoordinator(payable(vrfCoordinatorAddress));
+        address vrfAdapterAddress = vm.envAddress("VRF_ADAPTER_ADDRESS");
+        OrbitportVRFAdapter vrfAdapter = OrbitportVRFAdapter(payable(vrfAdapterAddress));
 
         console.log("=== Authorizing Fulfillers ===");
-        console.log("VRFCoordinator:", vrfCoordinatorAddress);
+        console.log("VRFAdapter:", vrfAdapterAddress);
         console.log("Number of fulfillers:", fulfillers.length);
 
         require(fulfillers.length == isAuthorized.length, "Arrays length mismatch");
 
         vm.startBroadcast();
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
         vm.stopBroadcast();
 
         // Verify
         for (uint256 i = 0; i < fulfillers.length; i++) {
             require(
-                vrfCoordinator.isAuthorizedFulfiller(fulfillers[i]) == isAuthorized[i],
+                vrfAdapter.isAuthorizedFulfiller(fulfillers[i]) == isAuthorized[i],
                 "Fulfiller authorization verification failed"
             );
             console.log("Fulfiller:", fulfillers[i], "Authorized:", isAuthorized[i]);
@@ -159,4 +159,3 @@ contract AdminOperations is Script {
         console.log("Callers authorized successfully");
     }
 }
-
