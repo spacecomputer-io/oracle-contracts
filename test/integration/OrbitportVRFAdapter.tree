@@ -1,6 +1,6 @@
-OrbitportVRFCoordinator Integration
+OrbitportVRFAdapter Integration
 ├── System Setup
-│   └── it should deploy FeedManager and VRFCoordinator and link them
+│   └── it should deploy FeedManager and VRFAdapter and link them
 ├── Randomness Request
 │   └── when request is made
 │       └── it should create request and emit event

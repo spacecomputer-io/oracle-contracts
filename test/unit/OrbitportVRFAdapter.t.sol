@@ -2,8 +2,8 @@
 pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {OrbitportVRFCoordinator} from "../../src/OrbitportVRFCoordinator.sol";
-import {IOrbitportVRFCoordinator} from "../../src/interfaces/IOrbitportVRFCoordinator.sol";
+import {OrbitportVRFAdapter} from "../../src/OrbitportVRFAdapter.sol";
+import {IOrbitportVRFAdapter} from "../../src/interfaces/IOrbitportVRFAdapter.sol";
 import {IOrbitportFeedManager} from "../../src/interfaces/IOrbitportFeedManager.sol";
 import {MockOrbitportFeedManager} from "../mocks/MockOrbitportFeedManager.sol";
 import {
@@ -16,9 +16,9 @@ import {
     StaleCTRNGData
 } from "../../src/interfaces/Errors.sol";
 
-contract OrbitportVRFCoordinatorTest is Test {
+contract OrbitportVRFAdapterTest is Test {
     MockOrbitportFeedManager public mockFeedManager;
-    OrbitportVRFCoordinator public vrfCoordinator;
+    OrbitportVRFAdapter public vrfAdapter;
     address public owner;
     address public requester;
     address public retriever;
@@ -34,24 +34,24 @@ contract OrbitportVRFCoordinatorTest is Test {
         fulfiller = address(0x9);
 
         mockFeedManager = new MockOrbitportFeedManager();
-        
+
         vm.prank(owner);
-        vrfCoordinator = new OrbitportVRFCoordinator(address(mockFeedManager), BEACON_ID);
-        
+        vrfAdapter = new OrbitportVRFAdapter(address(mockFeedManager), BEACON_ID);
+
         // Authorize retrievers
         address[] memory retrievers = new address[](1);
         retrievers[0] = retriever;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
-        
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
+
         // Authorize fulfillers
         address[] memory fulfillers = new address[](1);
         fulfillers[0] = fulfiller;
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
-        
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
+
         // Setup mock data
         ctrngValues = new uint256[](5);
         ctrngValues[0] = 10;
@@ -59,7 +59,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         ctrngValues[2] = 30;
         ctrngValues[3] = 40;
         ctrngValues[4] = 50;
-        
+
         IOrbitportFeedManager.CTRNGData memory data = IOrbitportFeedManager.CTRNGData({
             sequence: 1,
             timestamp: block.timestamp,
@@ -77,7 +77,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 2;
 
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -86,52 +86,52 @@ contract OrbitportVRFCoordinatorTest is Test {
         );
 
         assertEq(requestId, 1);
-        
-        IOrbitportVRFCoordinator.RandomWordsRequest memory request = vrfCoordinator.getRequest(requestId);
+
+        IOrbitportVRFAdapter.RandomWordsRequest memory request = vrfAdapter.getRequest(requestId);
         assertEq(request.requester, requester);
         assertEq(request.numWords, numWords);
-        
+
         // Request should not be fulfilled yet (async like Chainlink)
-        assertFalse(vrfCoordinator.isFulfilled(requestId));
+        assertFalse(vrfAdapter.isFulfilled(requestId));
     }
 
     /* ============ Access Control Tests ============ */
 
     function test_RevertWhen_CallerIsNotRetriever_GetInstantRandomness() public {
         uint32 numWords = 1;
-        
+
         vm.prank(requester);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, requester));
-        vrfCoordinator.getInstantRandomness(numWords);
+        vrfAdapter.getInstantRandomness(numWords);
     }
 
     function test_GetInstantRandomness_GivenRetriever() public {
         uint32 numWords = 2;
-        
+
         vm.prank(retriever);
-        (uint256 requestId, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
-        
+        (uint256 requestId, uint256[] memory randomWords) = vrfAdapter.getInstantRandomness(numWords);
+
         assertGt(requestId, 0);
         assertEq(randomWords.length, numWords);
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
+        assertTrue(vrfAdapter.isFulfilled(requestId));
     }
 
     function test_AuthorizeRetriever_GivenOwner() public {
         address newRetriever = address(0x99);
-        
+
         address[] memory retrievers = new address[](1);
         retrievers[0] = newRetriever;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
-        
-        assertTrue(vrfCoordinator.isAuthorizedRetriever(newRetriever));
-        
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
+
+        assertTrue(vrfAdapter.isAuthorizedRetriever(newRetriever));
+
         // Should be able to call now
         vm.prank(newRetriever);
-        vrfCoordinator.getInstantRandomness(1);
+        vrfAdapter.getInstantRandomness(1);
     }
 
     function test_DeauthorizeRetriever_GivenOwner() public {
@@ -139,39 +139,39 @@ contract OrbitportVRFCoordinatorTest is Test {
         retrievers[0] = retriever;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = false;
-        
+
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
-        
-        assertFalse(vrfCoordinator.isAuthorizedRetriever(retriever));
-        
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
+
+        assertFalse(vrfAdapter.isAuthorizedRetriever(retriever));
+
         // Should fail now
         vm.prank(retriever);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, retriever));
-        vrfCoordinator.getInstantRandomness(1);
+        vrfAdapter.getInstantRandomness(1);
     }
 
     function test_RevertWhen_CallerIsNotOwner_AuthorizeRetriever() public {
         address newRetriever = address(0x99);
-        
+
         address[] memory retrievers = new address[](1);
         retrievers[0] = newRetriever;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(requester);
         vm.expectRevert();
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
     }
 
     /* ============ Uniqueness Tests ============ */
 
     function test_GetInstantRandomness_GivenRetriever_ReturnsUniqueValues() public {
         uint32 numWords = 5;
-        
+
         vm.prank(retriever);
-        (, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
-        
+        (, uint256[] memory randomWords) = vrfAdapter.getInstantRandomness(numWords);
+
         // Check uniqueness within the batch
         for (uint i = 0; i < numWords; i++) {
             for (uint j = i + 1; j < numWords; j++) {
@@ -182,25 +182,25 @@ contract OrbitportVRFCoordinatorTest is Test {
 
     function test_GetInstantRandomness_MultipleCalls_ReturnsUniqueValues() public {
         uint32 numWords = 1;
-        
+
         vm.prank(retriever);
-        (, uint256[] memory words1) = vrfCoordinator.getInstantRandomness(numWords);
-        
+        (, uint256[] memory words1) = vrfAdapter.getInstantRandomness(numWords);
+
         // Same block/time, same requester, same everything except internal nonce/counter
         vm.prank(retriever);
-        (, uint256[] memory words2) = vrfCoordinator.getInstantRandomness(numWords);
-        
+        (, uint256[] memory words2) = vrfAdapter.getInstantRandomness(numWords);
+
         assertNotEq(words1[0], words2[0]);
     }
-    
+
     function test_GetInstantRandomness_GivenLargeNumWords() public {
         uint32 numWords = 20;
-        
+
         vm.prank(retriever);
-        (, uint256[] memory randomWords) = vrfCoordinator.getInstantRandomness(numWords);
-        
+        (, uint256[] memory randomWords) = vrfAdapter.getInstantRandomness(numWords);
+
         assertEq(randomWords.length, numWords);
-        
+
         // Verify all are unique
         for (uint i = 0; i < numWords; i++) {
             for (uint j = i + 1; j < numWords; j++) {
@@ -220,7 +220,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         // Request random words
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -228,7 +228,7 @@ contract OrbitportVRFCoordinatorTest is Test {
             numWords
         );
 
-        assertFalse(vrfCoordinator.isFulfilled(requestId));
+        assertFalse(vrfAdapter.isFulfilled(requestId));
 
         // Fulfill the request
         uint256[] memory randomWords = new uint256[](numWords);
@@ -236,10 +236,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         randomWords[1] = 67890;
 
         vm.prank(fulfiller);
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
 
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
-        uint256[] memory fulfilledWords = vrfCoordinator.getFulfilledRandomWords(requestId);
+        assertTrue(vrfAdapter.isFulfilled(requestId));
+        uint256[] memory fulfilledWords = vrfAdapter.getFulfilledRandomWords(requestId);
         assertEq(fulfilledWords.length, numWords);
         assertEq(fulfilledWords[0], randomWords[0]);
         assertEq(fulfilledWords[1], randomWords[1]);
@@ -254,7 +254,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         // Request random words
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -269,7 +269,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         vm.prank(requester);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotFulfiller.selector, requester));
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
     }
 
     function test_RevertWhen_RequestNotFound_FulfillRandomWords() public {
@@ -279,7 +279,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         vm.prank(fulfiller);
         vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
-        vrfCoordinator.fulfillRandomWords(999, randomWords);
+        vrfAdapter.fulfillRandomWords(999, randomWords);
     }
 
     function test_RevertWhen_AlreadyFulfilled_FulfillRandomWords() public {
@@ -291,7 +291,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         // Request random words
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -305,30 +305,30 @@ contract OrbitportVRFCoordinatorTest is Test {
         randomWords[1] = 67890;
 
         vm.prank(fulfiller);
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
 
         // Try to fulfill again
         vm.prank(fulfiller);
         vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, requestId));
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
     }
 
     function test_AuthorizeFulfiller_GivenOwner() public {
         address newFulfiller = address(0x99);
-        
+
         address[] memory fulfillers = new address[](1);
         fulfillers[0] = newFulfiller;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
-        
-        assertTrue(vrfCoordinator.isAuthorizedFulfiller(newFulfiller));
-        
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
+
+        assertTrue(vrfAdapter.isAuthorizedFulfiller(newFulfiller));
+
         // Should be able to fulfill now
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keccak256("test"),
             1,
             3,
@@ -340,8 +340,8 @@ contract OrbitportVRFCoordinatorTest is Test {
         randomWords[0] = 12345;
 
         vm.prank(newFulfiller);
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
-        assertTrue(vrfCoordinator.isFulfilled(requestId));
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
+        assertTrue(vrfAdapter.isFulfilled(requestId));
     }
 
     function test_DeauthorizeFulfiller_GivenOwner() public {
@@ -349,15 +349,15 @@ contract OrbitportVRFCoordinatorTest is Test {
         fulfillers[0] = fulfiller;
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = false;
-        
+
         vm.prank(owner);
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
-        
-        assertFalse(vrfCoordinator.isAuthorizedFulfiller(fulfiller));
-        
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
+
+        assertFalse(vrfAdapter.isAuthorizedFulfiller(fulfiller));
+
         // Should fail now
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keccak256("test"),
             1,
             3,
@@ -370,7 +370,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         vm.prank(fulfiller);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotFulfiller.selector, fulfiller));
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
     }
 
     /* ============ Constructor Tests ============ */
@@ -378,16 +378,16 @@ contract OrbitportVRFCoordinatorTest is Test {
     function test_RevertWhen_BeaconManagerIsZero_Constructor() public {
         vm.prank(owner);
         vm.expectRevert(InvalidAddress.selector);
-        new OrbitportVRFCoordinator(address(0), BEACON_ID);
+        new OrbitportVRFAdapter(address(0), BEACON_ID);
     }
 
     function test_Constructor_GivenValidParams() public {
         MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
         vm.prank(owner);
-        OrbitportVRFCoordinator newCoordinator = new OrbitportVRFCoordinator(address(newManager), BEACON_ID);
-        
-        assertEq(newCoordinator.getBeaconManager(), address(newManager));
-        assertEq(newCoordinator.getBeaconId(), BEACON_ID);
+        OrbitportVRFAdapter newAdapter = new OrbitportVRFAdapter(address(newManager), BEACON_ID);
+
+        assertEq(newAdapter.getBeaconManager(), address(newManager));
+        assertEq(newAdapter.getBeaconId(), BEACON_ID);
     }
 
     /* ============ setBeaconManager Tests ============ */
@@ -396,23 +396,23 @@ contract OrbitportVRFCoordinatorTest is Test {
         MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
         vm.prank(requester);
         vm.expectRevert();
-        vrfCoordinator.setBeaconManager(address(newManager));
+        vrfAdapter.setBeaconManager(address(newManager));
     }
 
     function test_RevertWhen_BeaconManagerIsZero_SetBeaconManager() public {
         vm.prank(owner);
         vm.expectRevert(InvalidAddress.selector);
-        vrfCoordinator.setBeaconManager(address(0));
+        vrfAdapter.setBeaconManager(address(0));
     }
 
     function test_SetBeaconManager_GivenOwner() public {
         MockOrbitportFeedManager newManager = new MockOrbitportFeedManager();
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFCoordinator.BeaconManagerSet(address(newManager));
-        vrfCoordinator.setBeaconManager(address(newManager));
-        
-        assertEq(vrfCoordinator.getBeaconManager(), address(newManager));
+        emit OrbitportVRFAdapter.BeaconManagerSet(address(newManager));
+        vrfAdapter.setBeaconManager(address(newManager));
+
+        assertEq(vrfAdapter.getBeaconManager(), address(newManager));
     }
 
     /* ============ setBeaconId Tests ============ */
@@ -420,17 +420,17 @@ contract OrbitportVRFCoordinatorTest is Test {
     function test_RevertWhen_CallerIsNotOwner_SetBeaconId() public {
         vm.prank(requester);
         vm.expectRevert();
-        vrfCoordinator.setBeaconId(2);
+        vrfAdapter.setBeaconId(2);
     }
 
     function test_SetBeaconId_GivenOwner() public {
         uint256 newBeaconId = 2;
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFCoordinator.BeaconIdSet(newBeaconId);
-        vrfCoordinator.setBeaconId(newBeaconId);
-        
-        assertEq(vrfCoordinator.getBeaconId(), newBeaconId);
+        emit OrbitportVRFAdapter.BeaconIdSet(newBeaconId);
+        vrfAdapter.setBeaconId(newBeaconId);
+
+        assertEq(vrfAdapter.getBeaconId(), newBeaconId);
     }
 
     /* ============ setMaxCTRNGAge Tests ============ */
@@ -438,36 +438,36 @@ contract OrbitportVRFCoordinatorTest is Test {
     function test_RevertWhen_CallerIsNotOwner_SetMaxCTRNGAge() public {
         vm.prank(requester);
         vm.expectRevert();
-        vrfCoordinator.setMaxCTRNGAge(7200);
+        vrfAdapter.setMaxCTRNGAge(7200);
     }
 
     function test_SetMaxCTRNGAge_GivenOwner() public {
         uint256 newMaxAge = 7200;
         vm.prank(owner);
         vm.expectEmit(true, false, false, false);
-        emit OrbitportVRFCoordinator.MaxCTRNGAgeSet(newMaxAge);
-        vrfCoordinator.setMaxCTRNGAge(newMaxAge);
-        
-        assertEq(vrfCoordinator.getMaxCTRNGAge(), newMaxAge);
+        emit OrbitportVRFAdapter.MaxCTRNGAgeSet(newMaxAge);
+        vrfAdapter.setMaxCTRNGAge(newMaxAge);
+
+        assertEq(vrfAdapter.getMaxCTRNGAge(), newMaxAge);
     }
 
     /* ============ getMaxCTRNGAge Tests ============ */
 
     function test_GetMaxCTRNGAge() public {
-        uint256 maxAge = vrfCoordinator.getMaxCTRNGAge();
+        uint256 maxAge = vrfAdapter.getMaxCTRNGAge();
         assertEq(maxAge, 3600); // Default value
     }
 
     /* ============ getBeaconManager Tests ============ */
 
     function test_GetBeaconManager() public {
-        assertEq(vrfCoordinator.getBeaconManager(), address(mockFeedManager));
+        assertEq(vrfAdapter.getBeaconManager(), address(mockFeedManager));
     }
 
     /* ============ getBeaconId Tests ============ */
 
     function test_GetBeaconId() public {
-        assertEq(vrfCoordinator.getBeaconId(), BEACON_ID);
+        assertEq(vrfAdapter.getBeaconId(), BEACON_ID);
     }
 
     /* ============ getLatestCTRNGData Tests ============ */
@@ -475,12 +475,12 @@ contract OrbitportVRFCoordinatorTest is Test {
     function test_RevertWhen_CallerIsNotRetriever_GetLatestCTRNGData() public {
         vm.prank(requester);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, requester));
-        vrfCoordinator.getLatestCTRNGData();
+        vrfAdapter.getLatestCTRNGData();
     }
 
     function test_GetLatestCTRNGData_GivenRetriever() public {
         vm.prank(retriever);
-        uint256[] memory data = vrfCoordinator.getLatestCTRNGData();
+        uint256[] memory data = vrfAdapter.getLatestCTRNGData();
         assertEq(data.length, ctrngValues.length);
         assertEq(data[0], ctrngValues[0]);
     }
@@ -490,12 +490,12 @@ contract OrbitportVRFCoordinatorTest is Test {
     function test_RevertWhen_CallerIsNotRetriever_GetCTRNGDataByRound() public {
         vm.prank(requester);
         vm.expectRevert(abi.encodeWithSelector(CallerIsNotRetriever.selector, requester));
-        vrfCoordinator.getCTRNGDataByRound(0);
+        vrfAdapter.getCTRNGDataByRound(0);
     }
 
     function test_GetCTRNGDataByRound_WhenRoundIdIsZero() public {
         vm.prank(retriever);
-        uint256[] memory data = vrfCoordinator.getCTRNGDataByRound(0);
+        uint256[] memory data = vrfAdapter.getCTRNGDataByRound(0);
         assertEq(data.length, ctrngValues.length);
         assertEq(data[0], ctrngValues[0]);
     }
@@ -509,9 +509,9 @@ contract OrbitportVRFCoordinatorTest is Test {
             blockNumber: block.number
         });
         mockFeedManager.setCTRNGFeedBySequence(BEACON_ID, uint256(roundId), roundData);
-        
+
         vm.prank(retriever);
-        uint256[] memory data = vrfCoordinator.getCTRNGDataByRound(roundId);
+        uint256[] memory data = vrfAdapter.getCTRNGDataByRound(roundId);
         assertEq(data.length, ctrngValues.length);
         assertEq(data[0], ctrngValues[0]);
     }
@@ -520,7 +520,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
     function test_RevertWhen_RequestNotFound_GetRequest() public {
         vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, 999));
-        vrfCoordinator.getRequest(999);
+        vrfAdapter.getRequest(999);
     }
 
     function test_GetRequest_GivenExistingRequest() public {
@@ -531,7 +531,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 2;
 
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -539,7 +539,7 @@ contract OrbitportVRFCoordinatorTest is Test {
             numWords
         );
 
-        IOrbitportVRFCoordinator.RandomWordsRequest memory request = vrfCoordinator.getRequest(requestId);
+        IOrbitportVRFAdapter.RandomWordsRequest memory request = vrfAdapter.getRequest(requestId);
         assertEq(request.requester, requester);
         assertEq(request.keyHash, keyHash);
         assertEq(request.subId, subId);
@@ -556,7 +556,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 2;
 
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -565,7 +565,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         );
 
         vm.expectRevert(abi.encodeWithSelector(RequestNotFound.selector, requestId));
-        vrfCoordinator.getFulfilledRandomWords(requestId);
+        vrfAdapter.getFulfilledRandomWords(requestId);
     }
 
     function test_GetFulfilledRandomWords_GivenFulfilledRequest() public {
@@ -576,7 +576,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 2;
 
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -589,9 +589,9 @@ contract OrbitportVRFCoordinatorTest is Test {
         randomWords[1] = 67890;
 
         vm.prank(fulfiller);
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
 
-        uint256[] memory fulfilledWords = vrfCoordinator.getFulfilledRandomWords(requestId);
+        uint256[] memory fulfilledWords = vrfAdapter.getFulfilledRandomWords(requestId);
         assertEq(fulfilledWords.length, numWords);
         assertEq(fulfilledWords[0], randomWords[0]);
         assertEq(fulfilledWords[1], randomWords[1]);
@@ -605,10 +605,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         retrievers[1] = address(0x98);
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
         vm.expectRevert(InvalidInput.selector);
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
     }
 
     function test_RevertWhen_RetrieverIsZero_SetAuthorizedRetrievers() public {
@@ -616,10 +616,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         retrievers[0] = address(0);
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
         vm.expectRevert(InvalidAddress.selector);
-        vrfCoordinator.setAuthorizedRetrievers(retrievers, isAuthorized);
+        vrfAdapter.setAuthorizedRetrievers(retrievers, isAuthorized);
     }
 
     /* ============ setAuthorizedFulfillers Tests ============ */
@@ -630,10 +630,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         fulfillers[1] = address(0x98);
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
         vm.expectRevert(InvalidInput.selector);
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
     }
 
     function test_RevertWhen_FulfillerIsZero_SetAuthorizedFulfillers() public {
@@ -641,10 +641,10 @@ contract OrbitportVRFCoordinatorTest is Test {
         fulfillers[0] = address(0);
         bool[] memory isAuthorized = new bool[](1);
         isAuthorized[0] = true;
-        
+
         vm.prank(owner);
         vm.expectRevert(InvalidAddress.selector);
-        vrfCoordinator.setAuthorizedFulfillers(fulfillers, isAuthorized);
+        vrfAdapter.setAuthorizedFulfillers(fulfillers, isAuthorized);
     }
 
     /* ============ fulfillRandomWords Tests ============ */
@@ -657,7 +657,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         uint32 numWords = 2;
 
         vm.prank(requester);
-        uint256 requestId = vrfCoordinator.requestRandomWords(
+        uint256 requestId = vrfAdapter.requestRandomWords(
             keyHash,
             subId,
             requestConfirmations,
@@ -671,7 +671,7 @@ contract OrbitportVRFCoordinatorTest is Test {
 
         vm.prank(fulfiller);
         vm.expectRevert(abi.encodeWithSelector(InvalidRandomWordsLength.selector, numWords, 1));
-        vrfCoordinator.fulfillRandomWords(requestId, randomWords);
+        vrfAdapter.fulfillRandomWords(requestId, randomWords);
     }
 
     /* ============ getInstantRandomness Tests ============ */
@@ -680,7 +680,7 @@ contract OrbitportVRFCoordinatorTest is Test {
         // Set a future timestamp to avoid underflow
         uint256 futureTimestamp = block.timestamp + 10000;
         vm.warp(futureTimestamp);
-        
+
         // Set old timestamp (more than max age of 3600)
         uint256 staleTimestamp = futureTimestamp - 4000;
         IOrbitportFeedManager.CTRNGData memory staleData = IOrbitportFeedManager.CTRNGData({
@@ -690,7 +690,7 @@ contract OrbitportVRFCoordinatorTest is Test {
             blockNumber: block.number
         });
         mockFeedManager.setLatestCTRNGFeed(BEACON_ID, staleData);
-        
+
         vm.prank(retriever);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -700,6 +700,6 @@ contract OrbitportVRFCoordinatorTest is Test {
                 3600
             )
         );
-        vrfCoordinator.getInstantRandomness(1);
+        vrfAdapter.getInstantRandomness(1);
     }
 }

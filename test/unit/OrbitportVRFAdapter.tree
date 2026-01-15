@@ -1,4 +1,4 @@
-OrbitportVRFCoordinator
+OrbitportVRFAdapter
 ├── constructor
 │   ├── when beaconManager is zero address
 │   │   └── it should revert with InvalidAddress
