@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 import { IOrbitportVRFAdapter } from "./interfaces/IOrbitportVRFAdapter.sol";
-import { IOrbitportFeedManager } from "./interfaces/IOrbitportFeedManager.sol";
+import { IOrbitportBeaconManager } from "./interfaces/IOrbitportBeaconManager.sol";
 import { InvalidAddress, RequestNotFound, CallerIsNotRetriever, CallerIsNotFulfiller, StaleCTRNGData, InvalidRandomWordsLength, InvalidInput } from "./interfaces/Errors.sol";
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
@@ -17,7 +17,7 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     mapping(address => bool) internal _authorizedFulfillers;
 
     /// @dev Reference to the CTRNG beacon manager
-    IOrbitportFeedManager internal _beaconManager;
+    IOrbitportBeaconManager internal _beaconManager;
 
     /// @dev Beacon ID to read from
     uint256 internal _beaconId;
@@ -40,27 +40,12 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @dev Map of consumed randomness values to ensure global uniqueness
     mapping(uint256 => bool) internal _consumedRandomness;
 
-    /// @notice Event emitted when authorized retriever is updated
-    event AuthorizedRetrieverUpdated(address indexed retriever, bool isAuthorized);
-
-    /// @notice Event emitted when authorized fulfiller is updated
-    event AuthorizedFulfillerUpdated(address indexed fulfiller, bool isAuthorized);
-
-    /// @notice Event emitted when beacon manager is set
-    event BeaconManagerSet(address indexed beaconManager);
-
-    /// @notice Event emitted when beacon ID is set
-    event BeaconIdSet(uint256 indexed beaconId);
-
-    /// @notice Event emitted when max CTRNG age is set
-    event MaxCTRNGAgeSet(uint256 maxAge);
-
     /// @notice Constructor
     /// @param beaconManager Address of the CTRNG beacon manager
     /// @param beaconId Beacon ID to read from
     constructor(address beaconManager, uint256 beaconId) Ownable(msg.sender) {
         if (beaconManager == address(0)) revert InvalidAddress();
-        _beaconManager = IOrbitportFeedManager(beaconManager);
+        _beaconManager = IOrbitportBeaconManager(beaconManager);
         _beaconId = beaconId;
     }
 
@@ -158,7 +143,7 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @param beaconManager Address of the beacon manager
     function setBeaconManager(address beaconManager) external override onlyOwner {
         if (beaconManager == address(0)) revert InvalidAddress();
-        _beaconManager = IOrbitportFeedManager(beaconManager);
+        _beaconManager = IOrbitportBeaconManager(beaconManager);
         emit BeaconManagerSet(beaconManager);
     }
 
@@ -166,13 +151,6 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @return uint256 Beacon ID
     function getBeaconId() external view override returns (uint256) {
         return _beaconId;
-    }
-
-    /// @notice Set the beacon ID
-    /// @param beaconId Beacon ID to read from
-    function setBeaconId(uint256 beaconId) external override onlyOwner {
-        _beaconId = beaconId;
-        emit BeaconIdSet(beaconId);
     }
 
     /// @notice Get the maximum CTRNG age in seconds
@@ -229,7 +207,7 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @notice Get the latest raw CTRNG data
     /// @return ctrng Array of raw CTRNG values
     function getLatestCTRNGData() external onlyAuthorizedRetriever returns (uint256[] memory) {
-        IOrbitportFeedManager.CTRNGData memory data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+        IOrbitportBeaconManager.CTRNGData memory data = _beaconManager.getLatestCTRNGBeacon(_beaconId);
         return data.ctrng;
     }
 
@@ -237,12 +215,12 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @param roundId Round ID (sequence number). If 0, returns latest round data
     /// @return ctrng Array of raw CTRNG values
     function getCTRNGDataByRound(uint80 roundId) external onlyAuthorizedRetriever returns (uint256[] memory) {
-        IOrbitportFeedManager.CTRNGData memory data;
+        IOrbitportBeaconManager.CTRNGData memory data;
 
         if (roundId == 0) {
-            data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+            data = _beaconManager.getLatestCTRNGBeacon(_beaconId);
         } else {
-            data = _beaconManager.getCTRNGFeedBySequence(_beaconId, uint256(roundId));
+            data = _beaconManager.getCTRNGBeaconBySequence(_beaconId, uint256(roundId));
         }
 
         return data.ctrng;
@@ -279,7 +257,7 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @return randomWords Array of random words
     function _fulfillInstantRequest(uint256 requestId, uint32 numWords) internal returns (uint256[] memory) {
         // Get raw CTRNG data from beacon manager
-        IOrbitportFeedManager.CTRNGData memory data = _beaconManager.getLatestCTRNGFeed(_beaconId);
+        IOrbitportBeaconManager.CTRNGData memory data = _beaconManager.getLatestCTRNGBeacon(_beaconId);
 
         // Validate freshness of CTRNG data
         uint256 currentTime = block.timestamp;

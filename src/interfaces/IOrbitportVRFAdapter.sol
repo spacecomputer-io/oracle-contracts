@@ -32,6 +32,21 @@ interface IOrbitportVRFAdapter {
         uint256[] randomWords
     );
 
+    /// @notice Event emitted when authorized retriever is updated
+    event AuthorizedRetrieverUpdated(address indexed retriever, bool isAuthorized);
+
+    /// @notice Event emitted when authorized fulfiller is updated
+    event AuthorizedFulfillerUpdated(address indexed fulfiller, bool isAuthorized);
+
+    /// @notice Event emitted when beacon manager is set
+    event BeaconManagerSet(address indexed beaconManager);
+
+    /// @notice Event emitted when beacon ID is set
+    event BeaconIdSet(uint256 indexed beaconId);
+
+    /// @notice Event emitted when max CTRNG age is set
+    event MaxCTRNGAgeSet(uint256 maxAge);
+
     /// @notice Request random words asynchronously
     /// @param keyHash Key hash for the request
     /// @param subId Subscription ID
