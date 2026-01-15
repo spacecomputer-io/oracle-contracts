@@ -1,0 +1,29 @@
+{
+  "deviationThreshold": "0.5",
+  "eoracleChainId": 1,
+  "beaconDeployer": "0x0000000000000000000000000000000000000000",
+  "pauserRegistry": {
+    "pausers": [],
+    "unpauser": "0x0000000000000000000000000000000000000000"
+  },
+  "publishers": [],
+  "supportedBeaconIds": [1],
+  "supportedBeaconsData": [
+    {
+      "base": "0x0000000000000000000000000000000000000000",
+      "description": "CTRNG Beacon",
+      "deviationThreshold": "0",
+      "beaconId": 1,
+      "inputDecimals": 18,
+      "outputDecimals": 18,
+      "quote": "0x0000000000000000000000000000000000000000"
+    }
+  ],
+  "targetChainId": 11155111,
+  "timelock": {
+    "executors": [],
+    "minDelay": 0,
+    "proposers": []
+  },
+  "usePrecompiledModexp": false
+}
