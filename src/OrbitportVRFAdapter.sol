@@ -40,6 +40,11 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
     /// @dev Map of consumed randomness values to ensure global uniqueness
     mapping(uint256 => bool) internal _consumedRandomness;
 
+    /// @dev Maximum iterations when searching for a unique random word.
+    /// Bounds gas cost in the unlikely event of hash collisions; reverts cleanly
+    /// rather than exhausting the block gas limit.
+    uint256 private constant MAX_UNIQUE_SEARCH_ITERS = 100;
+
     /// @notice Event emitted when authorized retriever is updated
     event AuthorizedRetrieverUpdated(address indexed retriever, bool isAuthorized);
 
@@ -296,8 +301,13 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
             uint256 randomWord;
             bool unique = false;
 
-            // Keep regenerating until we find a unique random word
+            // Keep regenerating until we find a unique random word.
+            // MAX_UNIQUE_SEARCH_ITERS bounds the loop so a pathological collision
+            // chain cannot exhaust the block gas limit and permanently brick the function.
             while (!unique) {
+                if (nonce >= MAX_UNIQUE_SEARCH_ITERS) {
+                    revert InvalidInput(); // Should be statistically impossible; prevents gas DoS
+                }
                 bytes32 hash = keccak256(
                     abi.encodePacked(
                         ctrng,
