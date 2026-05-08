@@ -306,6 +306,10 @@ contract OrbitportFeedManager is IOrbitportFeedManager, OwnableUpgradeable, Paus
             (uint256, uint256, uint256, uint256[])
         );
         if (!_supportedFeedIds[feedId]) revert FeedNotSupported(feedId);
+        // Sequence 0 is used as a sentinel value by getLatestCTRNGFeed to mean
+        // "no data yet". Storing sequence=0 would lock that feed permanently in
+        // the "not found" state for any caller checking latestSequence == 0.
+        if (sequence == 0) revert InvalidInput();
 
         uint256 latestSequence = _latestSequences[feedId];
         if (sequence > latestSequence || latestSequence == 0) {
