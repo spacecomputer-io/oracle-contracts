@@ -91,7 +91,7 @@ contract OrbitportVRFAdapter is IOrbitportVRFAdapter, Ownable {
         uint16 requestConfirmations,
         uint32 callbackGasLimit,
         uint32 numWords
-    ) external override returns (uint256 requestId) {
+    ) external override onlyAuthorizedRetriever returns (uint256 requestId) {
         requestId = ++_requestCounter;
 
         _requests[requestId] = RandomWordsRequest({
